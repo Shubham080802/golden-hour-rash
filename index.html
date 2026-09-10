@@ -131,6 +131,37 @@
   .mode[data-m="hard"] .mname{color:var(--hot)}
   .diff-note{font-size:11.5px;color:var(--muted);margin-top:14px;line-height:1.55}
 
+  .ach-toasts{position:absolute;top:64px;right:16px;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+  .ach-toast{
+    display:flex;flex-direction:column;gap:2px;text-align:right;
+    background:rgba(12,6,24,.88);border:1px solid rgba(255,194,74,.5);
+    border-left:3px solid var(--sun);border-radius:4px;padding:9px 12px;max-width:230px;
+    animation:achIn .4s ease both, achOut .5s ease 5s both;
+  }
+  .at-tag{font-family:var(--data);font-size:8.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--sun)}
+  .at-name{font-family:var(--display);font-size:16px;letter-spacing:.02em;color:var(--cream);line-height:1.05}
+  .at-desc{font-size:11px;color:var(--muted);line-height:1.35}
+  @keyframes achIn{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
+  @keyframes achOut{to{opacity:0;transform:translateX(24px)}}
+  @media (prefers-reduced-motion:reduce){.ach-toast{animation:none}}
+
+  .ach-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;text-align:left}
+  @media (max-width:760px){.ach-grid{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:480px){.ach-grid{grid-template-columns:1fr}}
+  .ach-card{
+    background:rgba(255,241,222,.04);border:1px solid var(--line);border-radius:4px;
+    padding:9px 10px;opacity:.45;
+  }
+  .ach-card.won{opacity:1;border-color:rgba(255,194,74,.45);background:rgba(255,194,74,.09)}
+  .ach-card .an{font-family:var(--ui);font-weight:700;font-size:12.5px;letter-spacing:.02em;display:block}
+  .ach-card.won .an{color:var(--sun)}
+  .ach-card .ad{font-size:11px;color:var(--muted);line-height:1.4;display:block;margin-top:2px}
+  .ach-count{
+    font-family:var(--data);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--muted);text-align:center;margin:0 0 12px;
+  }
+  .ach-count b{color:var(--cream)}
+
   .clean-pip{
     position:absolute;left:16px;bottom:76px;font-family:var(--data);font-size:9.5px;
     letter-spacing:.2em;text-transform:uppercase;color:var(--mint);
@@ -400,6 +431,8 @@
       </div>
     </div>
 
+    <div class="layer ach-toasts" id="achToasts" aria-live="polite"></div>
+
     <div class="touch" id="touch">
       <button class="tbtn l" id="tL" aria-label="Steer left">◄</button>
       <button class="tbtn r" id="tR" aria-label="Steer right">►</button>
@@ -505,10 +538,20 @@
         <h2 id="recTitle">Golden Coast</h2>
         <div class="rec-pick" id="recRoads"></div>
         <div class="rec-pick" id="recModes"></div>
-        <div class="rec-sum" id="recSum"></div>
-        <div class="rec-cols">
-          <div><h3>Top scores</h3><ol id="recScores"></ol></div>
-          <div><h3>Fastest kilometre</h3><ol id="recSplits"></ol></div>
+        <div class="rec-pick" id="recTabs">
+          <button data-t="times" class="on">Timings &amp; records</button>
+          <button data-t="ach">Achievements</button>
+        </div>
+        <div id="recTimes">
+          <div class="rec-sum" id="recSum"></div>
+          <div class="rec-cols">
+            <div><h3>Top scores</h3><ol id="recScores"></ol></div>
+            <div><h3>Fastest kilometre</h3><ol id="recSplits"></ol></div>
+          </div>
+        </div>
+        <div id="recAch" hidden>
+          <p class="ach-count" id="achCount"></p>
+          <div class="ach-grid" id="achGrid"></div>
         </div>
         <p class="note" style="text-align:center">Records are kept per road and per format, on this device.</p>
         <div class="row" style="margin-top:12px"><button class="btn ghost" id="recBack">Back</button></div>
@@ -904,7 +947,7 @@ const state = {
   seed:0, seedLabel:'', diff:'hard', guide:false, shove:0, diffOpen:false,
   trace:[], sampleT:0, topSpeed:0, recOpen:false,
   clean:true, contacts:0, overtakes:0, airs:0, knockdowns:0, cleanCorners:0,
-  corner:false, cornerClean:true, cornerSpeed:0, wasOff:false,
+  corner:false, cornerClean:true, cornerSpeed:0, wasOff:false, clipped:0, passedBy:0,
   locale:'coast', pickedLocale:'coast',
   actors:[], particles:[], pops:[],
   frame:0, ended:false
@@ -1949,6 +1992,7 @@ function update(dt){
           addCombo(1, 'OVERTAKE · ' + a.name, '#FFC24A', PTS.overtake);
         } else if(!a.ahead && lead > 900 && a.passCd <= 0){
           a.ahead = true; a.passCd = 2.5;
+          state.passedBy++;
           pop('PASSED BY ' + a.name, '#A896BC');
         }
         // a hit that puts them in the dirt is worth more than the hit
@@ -2077,6 +2121,7 @@ function collide(severity){
 }
 function clipped(side, who){
   breakClean();
+  state.clipped++;
   state.speed *= 0.94;
   state.shove = (side || 1) * 1.15;
   state.dazed = 0.45;
@@ -2329,6 +2374,7 @@ function resetRide(){
   state.clean = true; state.contacts = 0; state.overtakes = 0;
   state.airs = 0; state.knockdowns = 0; state.cleanCorners = 0;
   state.corner = false; state.cornerClean = true; state.cornerSpeed = 0; state.wasOff = false;
+  state.clipped = 0; state.passedBy = 0;
   standCache = '';
   state.ended = false;
   makeActors();
@@ -2491,6 +2537,14 @@ function showResults(){
     rows.forEach((r,i) => { if(names[i]) names[i].textContent = r.name; });
 
     const me = rows[mine-1];
+    checkAchievements({
+      pos: mine, of: rows.length, clean: state.clean, contacts: state.contacts,
+      hits: state.hits, knockdowns: state.knockdowns, near: state.near,
+      airs: state.airs, combo: state.bestCombo, clipped: state.clipped,
+      passedBy: state.passedBy, overtakes: state.overtakes,
+      mode: state.mode, diff: state.diff, locale: state.locale,
+      score: Math.floor(state.score), fkm: me.fkm
+    });
     recordRun({
       ts: Date.now(),
       score: Math.floor(state.score),
@@ -2532,7 +2586,86 @@ function showResults(){
 }
 
 /* ============================================================
-   13 · record room — every finished race, kept per road and format
+   13 · achievements
+   ============================================================ */
+const ACH_KEY = 'ghr.ach.v1';
+/* Each test gets the finished run plus a lifetime tally, so an achievement
+   can be about one great race or about everything you have ever done. */
+const ACHIEVEMENTS = [
+  {id:'first_blood', name:'First Blood',   desc:'Land your first hit',
+   test:(r,t) => t.hits >= 1},
+  {id:'winner',      name:'Race Winner',   desc:'Finish a race in first',
+   test:(r) => r.pos === 1},
+  {id:'podium',      name:'On the Podium', desc:'Finish in the top three',
+   test:(r) => r.pos <= 3},
+  {id:'perfect',     name:'Not a Mark',    desc:'Finish a race with no contact at all',
+   test:(r) => r.clean},
+  {id:'untouched',   name:'Untouchable',   desc:'Finish without a rival landing one on you',
+   test:(r) => r.clipped === 0},
+  {id:'brawler',     name:'Brawler',       desc:'Land eight hits in a single race',
+   test:(r) => r.hits >= 8},
+  {id:'demolition',  name:'Demolition',    desc:'Put three rivals in the dirt in one race',
+   test:(r) => r.knockdowns >= 3},
+  {id:'threader',    name:'Threader',      desc:'Twenty near misses in a single race',
+   test:(r) => r.near >= 20},
+  {id:'aviator',     name:'Aviator',       desc:'Catch eight crests in one race',
+   test:(r) => r.airs >= 8},
+  {id:'combo20',     name:'On a Roll',     desc:'Reach a twenty-hit combo',
+   test:(r) => r.combo >= 20},
+  {id:'comeback',    name:'Comeback',      desc:'Win after being passed at least four times',
+   test:(r) => r.pos === 1 && r.passedBy >= 4},
+  {id:'blind_win',   name:'Blind Faith',   desc:'Win a Daily on Blind',
+   test:(r) => r.pos === 1 && r.mode === 'daily' && r.diff === 'hard'},
+  {id:'tourist',     name:'Road Tripper',  desc:'Race all four roads',
+   test:(r,t) => Object.keys(t.roads).length >= 4},
+  {id:'grinder',     name:'Long Hauler',   desc:'Finish twenty races',
+   test:(r,t) => t.races >= 20},
+  {id:'century',     name:'Century',       desc:'Land a hundred hits across all your races',
+   test:(r,t) => t.hits >= 100}
+];
+
+function loadAch(){
+  try { const a = JSON.parse(localStorage.getItem(ACH_KEY) || '{}') || {};
+        a.won = a.won || {}; a.tally = a.tally || {races:0, hits:0, roads:{}};
+        a.tally.roads = a.tally.roads || {};
+        return a; }
+  catch(e){ return {won:{}, tally:{races:0, hits:0, roads:{}}}; }
+}
+function saveAch(a){ try { localStorage.setItem(ACH_KEY, JSON.stringify(a)); } catch(e){} }
+
+function checkAchievements(run){
+  const a = loadAch();
+  a.tally.races += 1;
+  a.tally.hits += run.hits;
+  a.tally.roads[run.locale] = true;
+  const earned = [];
+  for(const ach of ACHIEVEMENTS){
+    if(a.won[ach.id]) continue;
+    let ok = false;
+    try { ok = ach.test(run, a.tally); } catch(e){ ok = false; }
+    if(ok){ a.won[ach.id] = Date.now(); earned.push(ach); }
+  }
+  saveAch(a);
+  if(earned.length) showAchToasts(earned);
+  return earned;
+}
+
+function showAchToasts(list){
+  const wrap = $('achToasts');
+  list.forEach((ach, i) => {
+    const el2 = document.createElement('div');
+    el2.className = 'ach-toast';
+    el2.innerHTML = '<span class="at-tag">Achievement</span><span class="at-name"></span><span class="at-desc"></span>';
+    el2.querySelector('.at-name').textContent = ach.name;
+    el2.querySelector('.at-desc').textContent = ach.desc;
+    el2.style.animationDelay = (i * 0.5) + 's';
+    wrap.appendChild(el2);
+    setTimeout(() => el2.remove(), 6000 + i*500);
+  });
+}
+
+/* ============================================================
+   14 · record room — every finished race, kept per road and format
    ============================================================ */
 const REC_KEY = 'ghr.records.v1';
 const REC_MODES = [
@@ -2565,7 +2698,7 @@ function recordRun(e){
   saveRecords(all);
 }
 
-let recRoad = 'coast', recMode = 'run';
+let recRoad = 'coast', recMode = 'run', recTab = 'times';
 const shortDate = ts => new Date(ts).toLocaleDateString(undefined,{day:'numeric',month:'short'});
 const ordinal = n => n + (n===1?'st':n===2?'nd':n===3?'rd':'th');
 
@@ -2581,7 +2714,32 @@ function closeRecords(){
   $('recordsScreen').hidden = true;
   if(state.phase === 'title') $('titleScreen').hidden = false;
 }
+function drawAchievements(){
+  const a = loadAch();
+  const won = ACHIEVEMENTS.filter(x => a.won[x.id]).length;
+  $('achCount').innerHTML = '<b>' + won + '</b> of <b>' + ACHIEVEMENTS.length + '</b> earned · <b>' +
+    (a.tally.races || 0) + '</b> races finished';
+  $('achGrid').innerHTML = ACHIEVEMENTS.map(x =>
+    '<div class="ach-card ' + (a.won[x.id] ? 'won' : '') + '">' +
+      '<span class="an"></span><span class="ad"></span></div>').join('');
+  const cards = $('achGrid').children;
+  ACHIEVEMENTS.forEach((x,i) => {
+    cards[i].querySelector('.an').textContent = x.name;
+    cards[i].querySelector('.ad').textContent = x.desc;
+  });
+}
+
 function drawRecords(){
+  $('recTabs').querySelectorAll('button').forEach(b => {
+    b.classList.toggle('on', b.dataset.t === recTab);
+    b.onclick = () => { recTab = b.dataset.t; drawRecords(); };
+  });
+  $('recTimes').hidden = recTab !== 'times';
+  $('recAch').hidden   = recTab !== 'ach';
+  $('recRoads').hidden = recTab !== 'times';
+  $('recModes').hidden = recTab !== 'times';
+  if(recTab === 'ach'){ $('recTitle').textContent = 'Achievements'; drawAchievements(); return; }
+
   $('recRoads').innerHTML = LOCALE_IDS.map(id =>
     '<button data-r="' + id + '" class="' + (id===recRoad?'on':'') + '">' + LOCALES[id].name + '</button>').join('');
   $('recModes').innerHTML = REC_MODES.map(m =>
@@ -2620,7 +2778,7 @@ function drawRecords(){
 }
 
 /* ============================================================
-   14 · daily board (shared, async — the whole competitive design)
+   15 · daily board (shared, async — the whole competitive design)
    ============================================================ */
 let DB = null, dbTried = false;
 async function getDB(){
@@ -2709,7 +2867,7 @@ async function postScore(){
 }
 
 /* ============================================================
-   15 · input
+   16 · input
    ============================================================ */
 const keys = {};
 function keyDown(e){
@@ -2789,7 +2947,7 @@ $('postBtn').onclick  = postScore;
 $('handle').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); postScore(); } });
 
 /* ============================================================
-   16 · loop
+   17 · loop
    ============================================================ */
 let last = performance.now();
 function frame(now){
@@ -2807,6 +2965,7 @@ buildLocalePicker();
 startAttract();
 requestAnimationFrame(frame);
 getDB();
+
 
 
 
