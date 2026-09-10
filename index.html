@@ -103,6 +103,18 @@
   .combo-fill{height:100%;width:0%;background:var(--hot)}
   .hud-combo.idle{opacity:.38}
 
+  .callout{
+    position:absolute;left:50%;top:27%;transform:translateX(-50%);text-align:center;
+    pointer-events:none;
+  }
+  .callout[hidden]{display:none}
+  .cal-arrows{font-family:var(--display);font-size:clamp(26px,4.4vw,46px);line-height:.9;letter-spacing:.06em;color:var(--sun);text-shadow:0 2px 18px rgba(12,6,24,.9)}
+  .cal-label{font-family:var(--data);font-weight:600;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--cream);margin-top:3px;text-shadow:0 2px 10px rgba(12,6,24,.9)}
+
+  .mode[data-m="easy"] .mname{color:var(--mint)}
+  .mode[data-m="hard"] .mname{color:var(--hot)}
+  .diff-note{font-size:11.5px;color:var(--muted);margin-top:14px;line-height:1.55}
+
   .hud-keys{position:absolute;right:16px;bottom:14px;text-align:right;font-family:var(--data);font-size:9.5px;letter-spacing:.13em;color:var(--muted);text-transform:uppercase;line-height:1.9}
   .hud-keys b{color:var(--cream);font-weight:600}
 
@@ -162,6 +174,25 @@
   .btn.ghost:hover{border-color:var(--cream)}
   .btn:focus-visible{outline:2px solid var(--sun);outline-offset:2px}
   .btn[disabled]{opacity:.4;cursor:default;transform:none}
+
+  /* leaderboard */
+  .board{margin-top:18px;text-align:left;border-top:1px solid var(--line);padding-top:14px}
+  .board h3{font-family:var(--data);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin:0 0 9px;font-weight:400}
+  .board ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px;max-height:172px;overflow-y:auto}
+  .board li{display:grid;grid-template-columns:26px 1fr auto;gap:10px;align-items:baseline;padding:6px 8px;background:rgba(255,241,222,.04);border-radius:3px;font-size:13px}
+  .board li.me{background:rgba(255,194,74,.14);box-shadow:inset 2px 0 0 var(--sun)}
+  .board .rk{font-family:var(--data);font-size:11px;color:var(--muted)}
+  .board .hn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .board .sc{font-family:var(--data);font-weight:600;font-variant-numeric:tabular-nums;color:var(--sun)}
+  .board .empty{font-size:12.5px;color:var(--muted);padding:8px 2px;line-height:1.5}
+  .submit{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  .submit input{
+    flex:1;min-width:150px;font-family:var(--data);font-size:13px;color:var(--cream);
+    background:rgba(255,241,222,.06);border:1px solid var(--line);border-radius:4px;padding:10px 11px;
+  }
+  .submit input:focus{outline:2px solid var(--sun);outline-offset:1px}
+  .submit input::placeholder{color:var(--muted)}
+  .note{font-size:11.5px;color:var(--muted);margin-top:9px;line-height:1.5}
 
   /* touch controls */
   .touch{position:absolute;inset:0;display:none;pointer-events:none}
@@ -230,6 +261,10 @@
         <div class="combo-n"><span id="comboN">0</span><small id="comboMult">×1</small></div>
         <div class="combo-rail"><div class="combo-fill" id="comboFill"></div></div>
       </div>
+      <div class="callout" id="callout" hidden>
+        <div class="cal-arrows" id="calArrows">&gt;&gt;&gt;</div>
+        <div class="cal-label" id="calLabel">Right 4</div>
+      </div>
       <div class="hud-keys">
         <div><b>← →</b> steer</div>
         <div><b>J / space</b> swing</div>
@@ -260,8 +295,36 @@
             <span class="mdesc">No rivals, no timer, no score. Empty coast road and a slow pad. Ride until you stop.</span>
             <span class="mkey">Press 2</span>
           </button>
+          <button class="mode" data-m="daily" id="mDaily">
+            <span class="mname">Daily</span>
+            <span class="mdesc">Everyone gets today's exact road and traffic. Post a score, chase the board.</span>
+            <span class="mkey">Press 3</span>
+          </button>
         </div>
         <p class="note" style="text-align:center">Best with sound on — the run is scored to the track, and the road spawns on the beat.</p>
+      </div>
+    </div>
+
+    <!-- daily difficulty -->
+    <div class="scrim" id="diffScreen" hidden>
+      <div class="panel">
+        <div class="kicker">Daily · <span id="diffDate">—</span></div>
+        <h2>Same road, two ways to read it</h2>
+        <p class="sub">Everyone rides today's exact seed. Guided and Blind keep separate boards, so you're only measured against riders who had the same information you did.</p>
+        <div class="modes" style="grid-template-columns:1fr 1fr">
+          <button class="mode" data-m="easy" id="dEasy">
+            <span class="mname">Guided</span>
+            <span class="mdesc">Road map on the right and a corner call before every turn. Learn today's seed, then come back and drop the aids.</span>
+            <span class="mkey">Press E</span>
+          </button>
+          <button class="mode" data-m="hard" id="dHard">
+            <span class="mname">Blind</span>
+            <span class="mdesc">No map, no calls, no warning. Only what the road shows you as it arrives.</span>
+            <span class="mkey">Press H</span>
+          </button>
+        </div>
+        <p class="diff-note">Neither is harder to survive — you still can't lose a run. Blind is only harder to score.</p>
+        <div class="row" style="margin-top:12px"><button class="btn ghost" id="diffBack">Back</button></div>
       </div>
     </div>
 
@@ -280,6 +343,15 @@
         <div class="row">
           <button class="btn" id="againBtn">Ride again</button>
           <button class="btn ghost" id="menuBtn">Change mode</button>
+        </div>
+        <div class="board" id="board" hidden>
+          <h3 id="boardTitle">Today's board</h3>
+          <ol id="boardList"><li class="empty">Loading…</li></ol>
+          <div class="submit" id="submitRow">
+            <input id="handle" maxlength="16" placeholder="Your handle" autocomplete="off" spellcheck="false">
+            <button class="btn" id="postBtn">Post score</button>
+          </div>
+          <p class="note" id="boardNote">Scores are per handle — posting again only replaces your own if it's higher.</p>
         </div>
       </div>
     </div>
@@ -310,15 +382,15 @@
       <p>Zen removes even that: no rivals, no meter, no score. Same world, opened at 11pm.</p>
     </div>
     <div class="note-col">
-      <h4>Everything is generated</h4>
-      <p>The road comes from a seeded generator — sweepers, crests and the occasional tight corner, closed back to zero elevation so the loop is seamless. Every run is a road that has never existed before.</p>
-      <p>The soundtrack is WebAudio, scheduled a sixteenth ahead: <em>kick, snare, hat, bass, arp and pad</em>. There are no audio files, and no image files either — every car, rider and palm is drawn from canvas primitives.</p>
+      <h4>Competition that can't stress you</h4>
+      <p>Daily gives every player the same seeded road and the same traffic, then a shared board. The competition is <em>asynchronous</em> — you're chasing a number, never another person in real time, and never on the clock.</p>
+      <p>No live lobbies, no ranked decay, unlimited attempts. Your posted score only moves up.</p>
     </div>
   </section>
 
   <div class="foot">
     <span>Prototype build · core loop, procedural audio, seeded roads</span>
-    <span>No dependencies · no image or audio assets</span>
+    <span id="footStatus">Board: checking…</span>
   </div>
 </div>
 
@@ -345,6 +417,8 @@ function mulberry32(seed){
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+function hashStr(s){ let h=2166136261; for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619);} return h>>>0; }
+const todayKey = () => new Date().toISOString().slice(0,10);
 
 const REDUCED = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -601,7 +675,7 @@ const state = {
   air:0, prevGrad:0, bump:0, lean:0,
   swing:0, swingSide:1, swingCd:0, dazed:0,
   shake:0, hitStop:0, flash:0, flashColor:'#FF3F6B',
-  seed:0, seedLabel:'', shove:0,
+  seed:0, seedLabel:'', diff:'hard', guide:false, shove:0, diffOpen:false,
   locale:'coast',
   actors:[], particles:[], pops:[],
   frame:0, ended:false
@@ -1146,11 +1220,82 @@ function render(){
   vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(8,4,16,.46)');
   ctx.fillStyle = vg; ctx.fillRect(0,0,W,H);
 
+  drawGuide();
+
   if(state.flash > 0.01){
     ctx.globalAlpha = state.flash*0.3;
     ctx.fillStyle = state.flashColor; ctx.fillRect(0,0,W,H);
     ctx.globalAlpha = 1;
   }
+}
+
+/* Guided aid: a top-down ribbon of the road ahead, integrated from the
+   same per-segment curve data the 3D view is projected from. */
+function drawGuide(){
+  if(!state.guide || state.phase !== 'playing') return;
+  const bw = clamp(W*0.068, 52, 92);
+  const bh = H*0.46;
+  const bx = W - bw - clamp(W*0.018, 12, 26);
+  const by = H*0.28;
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(12,6,24,.58)';
+  rr(bx, by, bw, bh, 6); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,241,222,.15)'; ctx.lineWidth = 1; ctx.stroke();
+
+  const base = findSegment(state.pos + PLAYER_Z).index;
+  const N = 46, STEP = 4;
+  let head = 0, px = 0, py = 0;
+  const pts = [{x:0, y:0, g:0}];
+  for(let i=1;i<=N;i++){
+    const seg = segments[(base + i*STEP) % segments.length];
+    head += seg.curve * STEP * 0.0062;
+    px += Math.sin(head); py += Math.cos(head);
+    pts.push({ x:px, y:py, g:(seg.p2.world.y - seg.p1.world.y)/SEG_LEN });
+  }
+  let mnX=1e9,mxX=-1e9,mnY=1e9,mxY=-1e9;
+  for(const q of pts){ if(q.x<mnX)mnX=q.x; if(q.x>mxX)mxX=q.x; if(q.y<mnY)mnY=q.y; if(q.y>mxY)mxY=q.y; }
+  const pad = 11;
+  const sc = Math.min((bw-pad*2)/Math.max(0.6,(mxX-mnX)), (bh-pad*2)/Math.max(0.6,(mxY-mnY)));
+  const ox = bx + bw/2 - ((mnX+mxX)/2)*sc;
+  const oy = by + bh - pad;
+  const X = q => ox + q.x*sc;
+  const Y = q => oy - (q.y - mnY)*sc;
+
+  // the road ahead
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(255,241,222,.34)';
+  ctx.lineWidth = Math.max(3, bw*0.10);
+  ctx.beginPath();
+  ctx.moveTo(X(pts[0]), Y(pts[0]));
+  for(let i=1;i<pts.length;i++) ctx.lineTo(X(pts[i]), Y(pts[i]));
+  ctx.stroke();
+
+  // the part arriving next, lit
+  ctx.strokeStyle = PAL[curPal()].sun;
+  ctx.lineWidth = Math.max(3, bw*0.10);
+  ctx.beginPath();
+  ctx.moveTo(X(pts[0]), Y(pts[0]));
+  for(let i=1;i<=Math.min(12,N);i++) ctx.lineTo(X(pts[i]), Y(pts[i]));
+  ctx.stroke();
+
+  // crests worth knowing about
+  ctx.fillStyle = '#FF3F6B';
+  for(let i=2;i<pts.length;i++){
+    if(pts[i-1].g - pts[i].g > 0.045){
+      ctx.beginPath(); ctx.arc(X(pts[i]), Y(pts[i]), Math.max(1.6, bw*0.035), 0, 6.284); ctx.fill();
+    }
+  }
+
+  // you
+  ctx.fillStyle = '#FFF1DE';
+  ctx.beginPath(); ctx.arc(X(pts[0]), Y(pts[0]), Math.max(2.4, bw*0.055), 0, 6.284); ctx.fill();
+
+  ctx.font = '400 9px "IBM Plex Mono", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(255,241,222,.5)';
+  ctx.fillText('ROAD AHEAD', bx + bw/2, by - 7);
+  ctx.restore();
 }
 
 function drawSegment(seg, c, near){
@@ -1500,8 +1645,41 @@ const el = {
   time:$('songTime'), song:$('songName'),
   comboBox:$('comboBox'), comboN:$('comboN'), comboMult:$('comboMult'), comboFill:$('comboFill'),
   title:$('titleScreen'), end:$('endScreen'), pause:$('pauseScreen'),
-  seed:$('seedStamp')
+  seed:$('seedStamp'), foot:$('footStatus')
 };
+function updateCallout(){
+  const c = $('callout');
+  if(!c) return;
+  if(!state.guide || state.phase !== 'playing'){ c.hidden = true; return; }
+
+  const lookAhead = clamp(state.speed * 1.8, 3200, 15000);
+  const base = findSegment(state.pos + PLAYER_Z).index;
+  const from = Math.floor(lookAhead / SEG_LEN);
+  let curve = 0, grad = 0;
+  for(let i = Math.max(0, from-8); i < from+18; i++){
+    const seg = segments[(base + i) % segments.length];
+    if(Math.abs(seg.curve) > Math.abs(curve)) curve = seg.curve;
+    const g = (seg.p2.world.y - seg.p1.world.y) / SEG_LEN;
+    if(Math.abs(g) > Math.abs(grad)) grad = g;
+  }
+
+  if(Math.abs(curve) >= 1.3){
+    const left = curve < 0;
+    const sev = clamp(Math.round(Math.abs(curve)), 1, 6);
+    $('calArrows').textContent = (left ? '<' : '>').repeat(clamp(Math.ceil(sev/1.5), 1, 4));
+    $('calArrows').style.color = sev >= 4 ? 'var(--hot)' : 'var(--sun)';
+    $('calLabel').textContent = (left ? 'Left ' : 'Right ') + sev + (grad < -0.05 ? ' · over a crest' : '');
+    c.hidden = false;
+  } else if(grad < -0.06){
+    $('calArrows').textContent = '^';
+    $('calArrows').style.color = 'var(--sun)';
+    $('calLabel').textContent = 'Crest';
+    c.hidden = false;
+  } else {
+    c.hidden = true;
+  }
+}
+
 function syncHUD(){
   const zen = state.mode === 'zen';
   el.spd.textContent = Math.round(state.speed/MAX_SPEED*205);
@@ -1515,6 +1693,7 @@ function syncHUD(){
   el.comboFill.style.width = clamp(state.comboT/4.2*100,0,100)+'%';
   el.comboBox.classList.toggle('idle', state.combo === 0);
   el.comboBox.style.display = zen ? 'none' : '';
+  updateCallout();
 }
 
 /* ============================================================
@@ -1527,6 +1706,9 @@ function startAttract(){
   buildFog();
   resetRide();
   state.phase = 'title';
+  state.guide = false;
+  state.diffOpen = false;
+  $('diffScreen').hidden = true;
   el.hud.classList.remove('on');
   el.title.hidden = false; el.end.hidden = true; el.pause.hidden = true;
   el.seed.textContent = 'attract mode';
@@ -1542,16 +1724,40 @@ function resetRide(){
   state.ended = false;
   makeActors();
 }
-function startMode(mode){
+function openDiff(){
+  state.diffOpen = true;
+  $('diffDate').textContent = todayKey();
+  $('titleScreen').hidden = true;
+  $('diffScreen').hidden = false;
+}
+function closeDiff(back){
+  state.diffOpen = false;
+  $('diffScreen').hidden = true;
+  if(back && state.phase === 'title') $('titleScreen').hidden = false;
+}
+
+function startMode(mode, diff){
   state.mode = mode;
-  state.seed = Math.floor(Math.random()*1e9);
-  el.seed.textContent = mode === 'zen' ? 'zen · endless' : 'seed ' + state.seed.toString(36);
-  el.song.textContent = mode === 'zen' ? 'Long Way Home (Pad)' : 'Coast Road (Dusk Mix)';
+  state.diff = mode === 'daily' ? (diff || 'hard') : 'hard';
+  state.guide = (mode === 'daily' && state.diff === 'easy');
+  closeDiff();
+  if(mode === 'daily'){
+    state.seed = hashStr('GHR-' + todayKey());
+    state.seedLabel = todayKey();
+    el.seed.textContent = 'daily · ' + todayKey() + ' · ' + (state.diff === 'easy' ? 'guided' : 'blind');
+    el.song.textContent = 'Same Road, Everyone (Daily)';
+  } else {
+    state.seed = Math.floor(Math.random()*1e9);
+    state.seedLabel = '';
+    el.seed.textContent = mode === 'zen' ? 'zen · endless' : 'seed ' + state.seed.toString(36);
+    el.song.textContent = mode === 'zen' ? 'Long Way Home (Pad)' : 'Coast Road (Dusk Mix)';
+  }
   buildTrack(state.seed);
   buildFog();
   resetRide();
   state.phase = 'playing';
   el.title.hidden = true; el.end.hidden = true; el.pause.hidden = true;
+  $('callout').hidden = true;
   el.hud.classList.add('on');
   $('cabinet').focus();
   musicStart();
@@ -1581,14 +1787,14 @@ function resumeGame(){
 
 function showResults(){
   const zen = state.mode === 'zen';
-  $('endKicker').textContent = zen ? 'Ride ended' : 'Track finished';
+  $('endKicker').textContent = zen ? 'Ride ended' : (state.mode==='daily' ? "Today's road, finished" : 'Track finished');
   $('endScore').textContent = zen ? '—' : Math.floor(state.score).toLocaleString();
   $('endScore').style.color = zen ? 'var(--mint)' : 'var(--sun)';
   $('sCombo').textContent = zen ? '—' : state.bestCombo;
   $('sHits').textContent  = zen ? '—' : state.hits;
   $('sNear').textContent  = zen ? '—' : state.near;
   $('sDist').textContent = (state.dist/1000).toFixed(1) + ' km';
-  const key = 'ghr.best.' + state.mode;
+  const key = 'ghr.best.' + state.mode + (state.mode === 'daily' ? '.' + state.diff : '');
   let pbText = ' ';
   if(!zen){
     const prev = Number(localStorage.getItem(key) || 0);
@@ -1599,7 +1805,103 @@ function showResults(){
     $('endPb').textContent = 'No score in Zen. That is the point.';
   }
 
+  const board = $('board');
+  if(state.mode === 'daily'){
+    board.hidden = false;
+    loadBoard();
+  } else {
+    board.hidden = true;
+  }
   el.end.hidden = false;
+}
+
+/* ============================================================
+   13 · daily board (shared, async — the whole competitive design)
+   ============================================================ */
+let DB = null, dbTried = false;
+async function getDB(){
+  if(dbTried) return DB;
+  dbTried = true;
+  try {
+    if(window.claude && typeof window.claude.use === 'function') DB = await window.claude.use('db');
+  } catch(e){ DB = null; }
+  el.foot.textContent = DB ? 'Board: shared, live' : 'Board: local only (published build shares it)';
+  return DB;
+}
+const sanitize = h => (h||'').replace(/[^A-Za-z0-9_\-]/g,'').slice(0,16);
+function boardKey(){ return todayKey() + '-' + (state.diff === 'easy' ? 'guided' : 'blind'); }
+function boardPath(){ return 'daily/' + boardKey() + '/scores'; }
+
+async function loadBoard(){
+  const list = $('boardList');
+  const db = await getDB();
+  const mine = sanitize(localStorage.getItem('ghr.handle') || '');
+  $('handle').value = localStorage.getItem('ghr.handle') || '';
+  $('boardTitle').textContent = "Today's board · " + (state.diff === 'easy' ? 'Guided' : 'Blind') + " · " + todayKey();
+
+  if(!db){
+    const local = JSON.parse(localStorage.getItem('ghr.localboard.'+boardKey()) || '[]');
+    renderBoard(local, mine);
+    $('boardNote').textContent = 'Running outside the published page, so this board is stored on this device only.';
+    return;
+  }
+  try {
+    const snap = await db.collection(boardPath()).orderBy('score','desc').limit(10).get();
+    renderBoard(snap.docs.map(d => ({ handle: d.id, score: Number((d.data()||{}).score)||0 })), mine);
+  } catch(e){
+    list.innerHTML = '<li class="empty">Board unavailable right now. Your score is saved locally.</li>';
+  }
+}
+function renderBoard(rows, mine){
+  const list = $('boardList');
+  if(!rows.length){ list.innerHTML = '<li class="empty">No scores on this board yet. Post the first one.</li>'; return; }
+  list.innerHTML = rows.map((r,i) =>
+    '<li class="' + (r.handle===mine ? 'me' : '') + '">' +
+      '<span class="rk">' + String(i+1).padStart(2,'0') + '</span>' +
+      '<span class="hn"></span>' +
+      '<span class="sc">' + Math.floor(r.score).toLocaleString() + '</span>' +
+    '</li>').join('');
+  // set handle text as text nodes, never as HTML — other viewers write these
+  const spans = list.querySelectorAll('.hn');
+  rows.forEach((r,i)=>{ if(spans[i]) spans[i].textContent = r.handle; });
+}
+
+async function postScore(){
+  const raw = $('handle').value.trim();
+  const h = sanitize(raw);
+  const btn = $('postBtn');
+  if(!h){ $('boardNote').textContent = 'Pick a handle first — letters, numbers, dash or underscore.'; return; }
+  localStorage.setItem('ghr.handle', h);
+  const s = Math.floor(state.score);
+  btn.disabled = true; btn.textContent = 'Posting…';
+
+  const db = await getDB();
+  if(!db){
+    const k = 'ghr.localboard.'+boardKey();
+    const rows = JSON.parse(localStorage.getItem(k) || '[]').filter(r => r.handle !== h);
+    rows.push({handle:h, score:s});
+    rows.sort((a,b)=>b.score-a.score);
+    localStorage.setItem(k, JSON.stringify(rows.slice(0,10)));
+    renderBoard(rows.slice(0,10), h);
+    $('boardNote').textContent = 'Saved to this device.';
+    btn.disabled = false; btn.textContent = 'Post score';
+    return;
+  }
+  try {
+    const ref = db.doc(boardPath() + '/' + h);
+    const cur = await ref.get();
+    const prev = cur.exists ? Number((cur.data()||{}).score)||0 : 0;
+    if(s > prev){
+      await ref.set({ score: s, combo: state.bestCombo, hits: state.hits, at: new Date().toISOString() });
+      $('boardNote').textContent = 'Posted. Your entry only moves up — a worse run never costs you your place.';
+    } else {
+      $('boardNote').textContent = 'Kept your existing ' + prev.toLocaleString() + ' — this run was lower.';
+    }
+    await loadBoard();
+  } catch(e){
+    $('boardNote').textContent = 'Could not reach the board. Your personal best is still saved locally.';
+  }
+  btn.disabled = false; btn.textContent = 'Post score';
 }
 
 /* ============================================================
@@ -1613,8 +1915,15 @@ function keyDown(e){
   keys[k] = true;
 
   if(state.phase === 'title'){
+    if(state.diffOpen){
+      if(k==='e'||k==='E') startMode('daily','easy');
+      else if(k==='h'||k==='H') startMode('daily','hard');
+      else if(k==='Escape') closeDiff(true);
+      return;
+    }
     if(k==='1') startMode('run');
     if(k==='2') startMode('zen');
+    if(k==='3') openDiff();
     return;
   }
   if(k === 'Escape'){
@@ -1657,10 +1966,16 @@ if(window.matchMedia && window.matchMedia('(pointer: coarse)').matches){
 
 $('mRun').onclick   = ()=>startMode('run');
 $('mZen').onclick   = ()=>startMode('zen');
-$('againBtn').onclick = ()=>startMode(state.mode);
+$('mDaily').onclick = openDiff;
+$('dEasy').onclick  = ()=>startMode('daily','easy');
+$('dHard').onclick  = ()=>startMode('daily','hard');
+$('diffBack').onclick = ()=>closeDiff(true);
+$('againBtn').onclick = ()=>startMode(state.mode, state.diff);
 $('menuBtn').onclick  = ()=>{ el.end.hidden = true; startAttract(); };
 $('resumeBtn').onclick= resumeGame;
 $('quitBtn').onclick  = ()=>{ el.pause.hidden = true; finish(); };
+$('postBtn').onclick  = postScore;
+$('handle').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); postScore(); } });
 
 /* ============================================================
    15 · loop
@@ -1678,6 +1993,7 @@ function frame(now){
 resize();
 startAttract();
 requestAnimationFrame(frame);
+getDB();
 
 
 })();
