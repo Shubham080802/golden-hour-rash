@@ -191,16 +191,39 @@
   .stat .v{font-family:var(--display);font-size:23px;line-height:1;font-variant-numeric:tabular-nums}
   .stat:first-child .v{color:var(--sun)}
 
-  .finalpack{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;margin:0 0 16px}
-  .finalpack .chip{
-    display:flex;align-items:center;gap:6px;padding:5px 9px;border-radius:3px;
-    background:rgba(255,241,222,.05);border:1px solid var(--line);
-    font-family:var(--data);font-size:10.5px;letter-spacing:.06em;color:var(--muted);
+  .panel{max-height:100%;overflow-y:auto}
+  .classif{margin:0 0 16px;text-align:left}
+  .classif[hidden]{display:none}
+  .classif-head,.classif li{
+    display:grid;grid-template-columns:26px 10px 1fr 74px 66px 56px;
+    gap:8px;align-items:center;padding:5px 9px;
   }
-  .finalpack .chip.you{background:rgba(255,194,74,.16);border-color:rgba(255,194,74,.45);color:var(--cream)}
-  .finalpack .chip .p{opacity:.6}
-  .finalpack .chip .d{width:7px;height:7px;border-radius:50%}
-  .finalpack[hidden]{display:none}
+  @media (max-width:560px){
+    .classif-head,.classif li{grid-template-columns:22px 10px 1fr 66px 58px;}
+    .classif .cTop{display:none}
+  }
+  .classif-head{
+    font-family:var(--data);font-size:9px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--muted);border-bottom:1px solid var(--line);padding-bottom:6px;
+  }
+  .classif ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px}
+  .classif li{background:rgba(255,241,222,.04);border-radius:3px;font-size:13px}
+  .classif li.you{background:rgba(255,194,74,.16);box-shadow:inset 2px 0 0 var(--sun);color:var(--cream)}
+  .classif li.purple{box-shadow:inset 2px 0 0 #B36BE8}
+  .classif li.you.purple{box-shadow:inset 2px 0 0 var(--sun), inset 5px 0 0 #B36BE8}
+  .classif .cPos{font-family:var(--display);font-size:15px;line-height:1;color:var(--cream)}
+  .classif .cDot{width:9px;height:9px;border-radius:50%}
+  .classif .cName{font-family:var(--ui);font-weight:600;letter-spacing:.04em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .classif .cGap,.classif .cInt,.classif .cTop{
+    font-family:var(--data);font-size:11.5px;font-variant-numeric:tabular-nums;color:var(--muted);text-align:right;
+  }
+  .classif .cGap{color:var(--cream)}
+  .classif li.leader .cGap{color:var(--sun);font-size:9.5px;letter-spacing:.16em}
+  .fkm{
+    font-family:var(--data);font-size:10.5px;letter-spacing:.1em;color:var(--muted);
+    margin:9px 0 0;display:flex;align-items:center;gap:7px;
+  }
+  .fkm b{color:#C88BF0;font-weight:600}
 
   .bigscore{font-family:var(--display);font-size:clamp(46px,9vw,84px);line-height:.86;color:var(--sun);letter-spacing:.01em;font-variant-numeric:tabular-nums;margin-bottom:2px}
   .pb{font-family:var(--data);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:18px}
@@ -393,7 +416,13 @@
           <div class="stat"><div class="tag">Near misses</div><div class="v" id="sNear">0</div></div>
           <div class="stat"><div class="tag">Finished</div><div class="v" id="sPos">—</div></div>
         </div>
-        <div class="finalpack" id="finalPack" hidden></div>
+        <div class="classif" id="classif" hidden>
+          <div class="classif-head">
+            <span>Pos</span><span></span><span>Rider</span><span>Gap</span><span>Int</span><span class="cTop">Top</span>
+          </div>
+          <ol id="classifRows"></ol>
+          <p class="fkm" id="fkmNote"></p>
+        </div>
         <div class="row">
           <button class="btn" id="againBtn">Ride again</button>
           <button class="btn ghost" id="menuBtn">Change mode</button>
@@ -497,6 +526,10 @@ const OFF_DECEL = -MAX_SPEED / 1.6;
 const OFF_LIMIT = MAX_SPEED / 3.4;
 const CENTRIFUGAL = 0.32;
 const SONG_LEN = 100;
+/* World units are arbitrary; U_PER_M pins them to metres so speed, gaps and
+   split times all agree with the km/h on the HUD. */
+const U_PER_M = 210;
+const KM = 1000 * U_PER_M;
 
 const FOG_STEPS = 22;
 
@@ -782,6 +815,7 @@ const state = {
   swing:0, swingSide:1, swingCd:0, dazed:0,
   shake:0, hitStop:0, flash:0, flashColor:'#FF3F6B',
   seed:0, seedLabel:'', diff:'hard', guide:false, shove:0, diffOpen:false,
+  trace:[], sampleT:0, topSpeed:0,
   locale:'coast', pickedLocale:'coast',
   actors:[], particles:[], pops:[],
   frame:0, ended:false
@@ -834,6 +868,7 @@ function makeActors(){
         offset: c.line,
         speed: MAX_SPEED * (0.62 + rng()*0.14),
         steerV:0, stagger:0, swing:0, tell:0, knock:0, offTime:0, hitCd:0, wobble:0,
+        trace:[], topSpeed:0,
         cd: 2.5 + rng()*3,
         drift: rng()*Math.PI*2
       });
@@ -1747,6 +1782,7 @@ function update(dt){
 
       a.speed += (target - a.speed) * clamp(dt*1.15, 0, 1);
       a.speed = clamp(a.speed, MAX_SPEED*0.22, MAX_SPEED*(1.06 + far*0.36));
+      if(far <= 0 && a.speed > a.topSpeed) a.topSpeed = a.speed;
 
       // --- traffic: dodge what they can see, wear what they can't ---
       let dodge = 0;
@@ -1845,6 +1881,17 @@ function update(dt){
   // ---- score trickle from riding well
   if(playing && !zen){
     state.score += (state.speed/MAX_SPEED) * 9 * dt * mult();
+  }
+
+  // ---- timing trace: what every racer had covered, and when
+  if(playing && !zen){
+    if(state.speed > state.topSpeed) state.topSpeed = state.speed;
+    state.sampleT += dt;
+    if(state.sampleT >= 0.15){
+      state.sampleT = 0;
+      pushTrace(state.trace, state.t, state.dist);
+      for(const a of (state.riders || [])) pushTrace(a.trace, state.t, a.dist);
+    }
   }
 
   // ---- run clock
@@ -1951,10 +1998,12 @@ const el = {
    only definition that stays honest. A rival's dist minus yours IS the gap
    you can see down the road, so the board never disagrees with your eyes. */
 function packOrder(){
-  const rows = [{ name:'YOU', dist:state.dist, col:'#FF7A3C', you:true }];
+  const rows = [{ name:'YOU', dist:state.dist, col:'#FF7A3C', you:true,
+                  trace:state.trace, top:state.topSpeed }];
   for(const a of state.actors){
     if(a.type !== 'rider') continue;
     rows.push({ name:a.name, dist:a.dist, col:a.bike, you:false,
+                trace:a.trace, top:a.topSpeed,
                 struck: a.knock > 0 || a.offTime > 0.15 || a.hitCd > 0.5 });
   }
   rows.sort((x,y) => y.dist - x.dist);
@@ -1972,13 +2021,13 @@ function updateStandings(){
   $('posN').textContent = 'P' + (mine+1) + '/' + rows.length;
 
   const now = performance.now();
-  const key = rows.map(r => r.name + (r.struck?'!':'') + Math.round((r.dist-state.dist)/100)).join('|');
+  const key = rows.map(r => r.name + (r.struck?'!':'') + Math.round((r.dist-state.dist)/U_PER_M)).join('|');
   if(key === standCache || now - standAt < 120) return;
   standCache = key; standAt = now;
 
   const list = $('standList');
   list.innerHTML = rows.map((r,i) => {
-    const gap = Math.round((r.dist - state.dist)/100);
+    const gap = Math.round((r.dist - state.dist)/U_PER_M);
     const gapTxt = r.you ? '—' : (gap>=0 ? '+' : '') + gap + 'm';
     const cls = r.you ? 'you' : (r.struck ? 'struck' : '');
     return '<li class="' + cls + '">' +
@@ -1988,6 +2037,63 @@ function updateStandings(){
       '<span class="gp">' + gapTxt + '</span>' +
     '</li>';
   }).join('');
+}
+
+/* When was this racer at distance d? Linear interpolation over their own
+   trace. A gap to the leader is then "how long ago was the leader here",
+   which is exactly what a timing screen reports at a real finish. */
+function pushTrace(tr, t, d){
+  tr.push({ t, d: tr.length ? Math.max(tr[tr.length-1].d, d) : d });
+}
+function timeAtDistance(trace, d){
+  if(!trace || trace.length < 2) return null;
+  if(d <= trace[0].d) return trace[0].t;
+  for(let i=1;i<trace.length;i++){
+    if(trace[i].d >= d){
+      const a = trace[i-1], b = trace[i];
+      const span = b.d - a.d;
+      return span <= 0 ? b.t : a.t + (b.t - a.t) * ((d - a.d) / span);
+    }
+  }
+  return null;
+}
+/* The fastest kilometre anyone put together — this run's fastest lap. */
+function fastestKm(trace){
+  if(!trace || trace.length < 2) return null;
+  let best = Infinity, j = 1;
+  for(let i=0;i<trace.length;i++){
+    if(j < i+1) j = i+1;
+    while(j < trace.length && trace[j].d - trace[i].d < KM) j++;
+    if(j >= trace.length) break;
+    const span = trace[j].t - trace[i].t;
+    if(span < best) best = span;
+  }
+  return best === Infinity ? null : best;
+}
+const fmtGap = g => (g === null || !isFinite(g)) ? '—' : '+' + g.toFixed(3);
+const fmtSplit = t => (t === null) ? '—' : t.toFixed(2) + 's';
+
+function classify(){
+  const rows = packOrder();
+  const winner = rows[0];
+  let bestKm = null;
+  for(const r of rows){
+    r.kmh = Math.round(r.top / U_PER_M * 3.6);
+    r.fkm = fastestKm(r.trace);
+    if(r.fkm !== null && (bestKm === null || r.fkm < bestKm.fkm)) bestKm = r;
+  }
+  let prev = 0;
+  rows.forEach((r,i) => {
+    if(i === 0){ r.gap = 0; r.int = 0; }
+    else {
+      const tw = timeAtDistance(winner.trace, r.dist);
+      r.gap = (tw === null) ? null : Math.max(0, state.t - tw);
+      r.int = (r.gap === null || prev === null) ? null : Math.max(0, r.gap - prev);
+    }
+    prev = r.gap;
+    r.purple = (bestKm === r);
+  });
+  return rows;
 }
 
 function updateCallout(){
@@ -2025,7 +2131,7 @@ function updateCallout(){
 
 function syncHUD(){
   const zen = state.mode === 'zen';
-  el.spd.textContent = Math.round(state.speed/MAX_SPEED*205);
+  el.spd.textContent = Math.round(state.speed / U_PER_M * 3.6);
   el.score.textContent = zen ? '—' : Math.floor(state.score).toLocaleString();
   const p = zen ? ((state.t*3)%100) : clamp(state.t/SONG_LEN*100,0,100);
   el.fill.style.width = p.toFixed(1)+'%';
@@ -2067,6 +2173,7 @@ function resetRide(){
   state.swing = 0; state.swingCd = 0; state.dazed = 0;
   state.shake = 0; state.hitStop = 0; state.flash = 0;
   state.particles = []; state.pops = []; state.lean = 0; state.shove = 0;
+  state.trace = []; state.sampleT = 0; state.topSpeed = 0;
   standCache = '';
   state.ended = false;
   makeActors();
@@ -2154,6 +2261,10 @@ function startMode(mode, diff){
 function finish(){
   if(state.ended) return;
   state.ended = true;
+  if(state.mode !== 'zen'){
+    pushTrace(state.trace, state.t, state.dist);
+    for(const a of (state.riders || [])) pushTrace(a.trace, state.t, a.dist);
+  }
   state.phase = 'ended';
   musicStop(1.6);
   el.hud.classList.remove('on');
@@ -2183,22 +2294,34 @@ function showResults(){
   $('sCombo').textContent = zen ? '—' : state.bestCombo;
   $('sHits').textContent  = zen ? '—' : state.hits;
   $('sNear').textContent  = zen ? '—' : state.near;
-  const fp = $('finalPack');
+  const cl = $('classif');
   if(zen){
     $('sPos').textContent = '—';
-    fp.hidden = true;
+    cl.hidden = true;
   } else {
-    const rows = packOrder();
+    const rows = classify();
     const mine = rows.findIndex(r => r.you) + 1;
     const sfxN = mine===1 ? 'st' : mine===2 ? 'nd' : mine===3 ? 'rd' : 'th';
     $('sPos').textContent = mine + sfxN + ' / ' + rows.length;
-    fp.hidden = false;
-    fp.innerHTML = rows.map((r,i) =>
-      '<span class="chip' + (r.you?' you':'') + '">' +
-        '<span class="p">' + (i+1) + '</span>' +
-        '<span class="d" style="background:' + r.col + '"></span>' +
-        '<span>' + r.name + '</span>' +
-      '</span>').join('');
+    cl.hidden = false;
+    $('classifRows').innerHTML = rows.map((r,i) => {
+      const cls = [r.you ? 'you' : '', i === 0 ? 'leader' : '', r.purple ? 'purple' : ''].filter(Boolean).join(' ');
+      return '<li class="' + cls + '">' +
+        '<span class="cPos">' + (i+1) + '</span>' +
+        '<span class="cDot" style="background:' + r.col + '"></span>' +
+        '<span class="cName"></span>' +
+        '<span class="cGap">' + (i === 0 ? 'LEADER' : fmtGap(r.gap)) + '</span>' +
+        '<span class="cInt">' + (i === 0 ? '' : fmtGap(r.int)) + '</span>' +
+        '<span class="cTop">' + r.kmh + '</span>' +
+      '</li>';
+    }).join('');
+    const names = $('classifRows').querySelectorAll('.cName');
+    rows.forEach((r,i) => { if(names[i]) names[i].textContent = r.name; });
+
+    const fast = rows.find(r => r.purple);
+    $('fkmNote').innerHTML = fast
+      ? 'Fastest kilometre <b>' + fmtSplit(fast.fkm) + '</b> · ' + (fast.you ? 'you' : fast.name.toLowerCase())
+      : 'No rider covered a full kilometre this run.';
   }
 
   const key = 'ghr.best.' + state.mode + (state.mode === 'daily' ? '.' + state.diff : '');
@@ -2403,6 +2526,7 @@ buildLocalePicker();
 startAttract();
 requestAnimationFrame(frame);
 getDB();
+
 
 
 })();
