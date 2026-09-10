@@ -684,6 +684,13 @@ const LOCALES = {
     ridgeFar:'#4A2A50', ridgeNear:'#241634',
     hill:'#1E1330', hill2:'#2A1B3C',
     lanes:true, rails:true, bpm:126, propDensity:0.30,
+    /* A minor, four on the floor — the driving one. */
+    music:{
+      roots:[110.00, 87.31, 130.81, 98.00],
+      scale:[220.00, 261.63, 293.66, 329.63, 392.00],
+      lead:[0,2,1,3,4,3,1,2, 0,1,2,4,3,2,1,0],
+      drums:'four', bassWave:'sawtooth', leadWave:'square', padWave:'sawtooth', drive:0.80
+    },
     props:[{kind:'palm',scale:1.0},{kind:'palm',scale:0.8},{kind:'rock',scale:0.8},{kind:'sign',scale:0.55}],
     terrain:{hillAmp:1.0, curveAmp:1.0, climb:0, straightBias:0.30, tight:0.16}, aiSkill:0.00
   },
@@ -701,6 +708,13 @@ const LOCALES = {
     ridgeFar:'#AEC1D2', ridgeNear:'#C6B189',
     hill:'#8E7A56', hill2:'#A08B63',
     lanes:false, rails:false, bpm:116, propDensity:0.36,
+    /* D major, half-time, plenty of air — the one you ride to unwind. */
+    music:{
+      roots:[73.42, 110.00, 98.00, 110.00],
+      scale:[293.66, 329.63, 369.99, 440.00, 493.88],
+      lead:[0,1,2,3,4,3,2,1, 2,3,4,3,2,1,0,1],
+      drums:'soft', bassWave:'triangle', leadWave:'triangle', padWave:'triangle', drive:0.34
+    },
     props:[{kind:'grass',scale:0.5},{kind:'grass',scale:0.4},{kind:'driftwood',scale:0.6},{kind:'rock',scale:0.55}],
     terrain:{hillAmp:0.30, curveAmp:0.70, climb:0, straightBias:0.52, tight:0.05}, aiSkill:0.00
   },
@@ -718,6 +732,14 @@ const LOCALES = {
     ridgeFar:'#728698', ridgeNear:'#1F2C3A',
     hill:'#1A2630', hill2:'#26343F',
     lanes:true, rails:true, bpm:132, propDensity:0.42,
+    /* E phrygian — the flat second is the whole reason this road sounds
+       like it is about to go wrong. Busiest kit of the four. */
+    music:{
+      roots:[82.41, 87.31, 98.00, 82.41],
+      scale:[329.63, 349.23, 392.00, 493.88, 587.33],
+      lead:[0,0,1,2,0,1,2,4, 3,2,1,0,1,2,3,4],
+      drums:'drive', bassWave:'sawtooth', leadWave:'sawtooth', padWave:'sawtooth', drive:1.00
+    },
     props:[{kind:'pine',scale:1.0},{kind:'pine',scale:0.75},{kind:'boulder',scale:0.9},{kind:'sign',scale:0.55}],
     terrain:{hillAmp:1.9, curveAmp:1.35, climb:1, straightBias:0.18, tight:0.34}, aiSkill:0.20
   },
@@ -735,6 +757,13 @@ const LOCALES = {
     ridgeFar:'#8A4536', ridgeNear:'#43202A',
     hill:'#3A1D24', hill2:'#4E2A2A',
     lanes:true, rails:false, bpm:128, propDensity:0.26,
+    /* A blues with a swung sixteenth — swagger rather than urgency. */
+    music:{
+      roots:[110.00, 73.42, 110.00, 82.41],
+      scale:[220.00, 261.63, 293.66, 311.13, 329.63, 392.00],
+      lead:[0,2,3,4,3,2,0,1, 0,2,3,5,4,3,2,0],
+      drums:'shuffle', bassWave:'square', leadWave:'square', padWave:'sawtooth', drive:0.68
+    },
     props:[{kind:'cactus',scale:0.7},{kind:'mesa',scale:2.6,far:true},{kind:'boulder',scale:0.9},{kind:'cactus',scale:0.5}],
     terrain:{hillAmp:0.70, curveAmp:1.35, climb:0, straightBias:0.42, tight:0.22}, aiSkill:0.08
   }
@@ -854,52 +883,86 @@ function noiseHit(dur, gain, when, freq, q, dest){
   s.start(t); s.stop(t+dur+0.02);
 }
 
-const ROOTS = [110.00, 87.31, 130.81, 98.00];          // Am  F  C  G
-const PENTA = [220.00, 261.63, 293.66, 329.63, 392.00]; // A minor pentatonic
-const LEAD  = [0,2,1,3,4,3,1,2, 0,1,2,4,3,2,1,0];
+const KICKS = { four:[0,8,11], drive:[0,6,8,14], shuffle:[0,8], soft:[0,8] };
 
 function schedule(){
   if(!AU.ctx || !AU.on) return;
   const spb = (60/AU.bpm)/4;                            // 16th
   while(AU.next < AU.ctx.currentTime + 0.14){
-    playStep(AU.step, AU.next);
+    playStep(AU.step, AU.next, spb);
     AU.next += spb; AU.step++;
   }
 }
-function playStep(i, t){
+
+function playStep(i, t0, step16){
+  const M = LOCALES[state.locale].music;
   const s = i % 16;
   const bar = Math.floor(i/16) % 4;
-  const root = ROOTS[bar];
+  const root = M.roots[bar];
   const zen = state.mode === 'zen';
+  const scale = M.scale;
+
+  // a shuffle drags every off-sixteenth a little late
+  const t = (M.drums === 'shuffle' && s % 2 === 1) ? t0 + step16 * 0.26 : t0;
 
   if(zen){
-    if(s===0){
-      tone('sine', root*0.5, root*0.5, 3.4, 0.16, t);
-      tone('triangle', root*2, root*2, 3.2, 0.05, t);
-      tone('triangle', root*3.01, root*3.01, 2.8, 0.035, t);
+    /* Zen keeps the road's key so it still sounds like this place, but
+       drops the kit entirely: root, fifth, and a long pad. */
+    if(s === 0){
+      tone('sine', root*0.5, root*0.5, 3.6, 0.17, t);
+      tone(M.padWave === 'sawtooth' ? 'triangle' : M.padWave, root*2, root*2, 3.4, 0.05, t);
+      tone('triangle', root*3.01, root*3.01, 3.0, 0.032, t);
+      pulse(t);
     }
-    if(s===8) tone('sine', 55, 38, 0.5, 0.14, t);
-    if(s===4 || s===12) tone('sine', PENTA[(i/4)%5], PENTA[(i/4)%5], 1.6, 0.05, t);
-    if(s===0) pulse(t);
+    if(s === 8) tone('sine', root*0.5, root*0.375, 0.6, 0.11, t);
+    if(s === 4 || s === 12){
+      const n = scale[(Math.floor(i/4)) % scale.length];
+      tone('sine', n, n, 1.8, 0.045, t);
+    }
     return;
   }
 
-  if(s===0 || s===8 || s===11){                          // kick
-    tone('sine', 128, 42, 0.24, 0.62, t);
-    if(s===0 || s===8) pulse(t);
+  const d = M.drive;
+
+  // kick
+  if(KICKS[M.drums].indexOf(s) !== -1){
+    tone('sine', 128, 42, 0.24, 0.34 + d*0.32, t);
+    if(s === 0 || s === 8) pulse(t);
   }
-  if(s%2===0) noiseHit(0.035, 0.05, t, 8200, 1.2, AU.music);  // hat
-  if(s===4 || s===12) noiseHit(0.13, 0.16, t, 1900, 0.7, AU.music); // snare
-  if(s%2===0){                                            // bass
-    const oct = (s===6||s===14) ? 2 : 1;
-    tone('sawtooth', root*oct, root*oct, 0.15, 0.2, t);
+
+  // snare / backbeat
+  if(M.drums === 'soft'){
+    if(s === 12) noiseHit(0.16, 0.09, t, 1500, 0.6, AU.music);
+  } else if(s === 4 || s === 12){
+    noiseHit(0.13, 0.10 + d*0.10, t, 1900, 0.7, AU.music);
   }
-  if(s%2===1 && (bar!==1 || s>7)){                        // lead arp
-    const n = PENTA[LEAD[i%16]] * (bar===2?1.5:1);
-    tone('square', n, n, 0.11, 0.055, t);
+
+  // hats
+  if(M.drums === 'drive'){
+    noiseHit(0.028, 0.030 + d*0.022, t, 8600, 1.3, AU.music);
+  } else if(M.drums === 'soft'){
+    if(s % 4 === 2) noiseHit(0.045, 0.028, t, 7200, 1.1, AU.music);
+  } else if(s % 2 === 0){
+    noiseHit(0.035, 0.045, t, 8200, 1.2, AU.music);
   }
-  if(s===0) tone('sawtooth', root*2, root*2, 1.5, 0.045, t);  // pad
+
+  // bass
+  if(s % 2 === 0){
+    const oct = (d > 0.6 && (s === 6 || s === 14)) ? 2 : 1;
+    tone(M.bassWave, root*oct, root*oct, M.drums === 'soft' ? 0.26 : 0.15, 0.14 + d*0.09, t);
+  }
+
+  // lead
+  const playLead = M.drums === 'soft' ? (s % 4 === 1) : (s % 2 === 1 && (bar !== 1 || s > 7));
+  if(playLead){
+    const n = scale[M.lead[i % 16] % scale.length] * (bar === 2 ? 1.5 : 1);
+    tone(M.leadWave, n, n, M.drums === 'soft' ? 0.22 : 0.11, 0.028 + d*0.035, t);
+  }
+
+  // pad
+  if(s === 0) tone(M.padWave, root*2, root*2, M.drums === 'soft' ? 2.2 : 1.5, 0.030 + d*0.022, t);
 }
+
 function pulse(t){
   const d = (t - AU.ctx.currentTime) * 1000;
   setTimeout(()=>{ AU.beat = 1; }, Math.max(0, d));
@@ -2965,6 +3028,7 @@ buildLocalePicker();
 startAttract();
 requestAnimationFrame(frame);
 getDB();
+
 
 
 

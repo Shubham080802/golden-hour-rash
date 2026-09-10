@@ -53,6 +53,32 @@ every turn) and **Blind** (nothing but the road). These keep **separate boards**
 difficulty is a choice rather than a handicap, and Guided works as the on-ramp where
 you learn today's seed before riding it blind for the higher board.
 
+## Scoring
+
+Every award is multiplied by the combo multiplier at the moment it lands, and
+the popup shows the points it actually paid.
+
+| Event | Points |
+|---|---|
+| Near miss | 70 |
+| Airtime off a crest | 60 |
+| Clean corner, held at speed | 90 |
+| Hit a rival | 130 |
+| Overtake | 180 |
+| Knockdown — a hit that puts them in the dirt | 260 |
+| **Perfect run** | **2,500** |
+
+A **perfect run** is a whole race with no traffic contact, no rival landing
+one on you, and no wheel off the road. A pip in the HUD tracks it live and
+goes out the moment you touch anything, so the run has something to protect;
+miss it by three or fewer contacts and the results screen says so.
+
+Fifteen **achievements** persist across sessions and appear on their own tab
+in the record room, earned and locked side by side. Some are about one great
+race (twenty near misses, three rivals in the dirt, a twenty-hit combo),
+others about everything you have ever done (a hundred hits, all four roads,
+twenty races finished).
+
 ### Classification and records
 
 A run ends when the song ends, not at a finish line, so a "gap" needs a
@@ -118,8 +144,16 @@ Single file, ~2500 lines, zero dependencies.
 - **Depth fog** — baked into the road's own colours via a per-palette lookup table
   across 22 depth bands, so the road recedes *because it is far away* rather than
   being hidden behind a curtain drawn in front of it.
-- **Audio** — fully procedural WebAudio. Kick, snare, hat, bass, arp and pad
-  scheduled on a 16th-note lookahead clock. No audio files. BPM is per-locale.
+- **Audio** — fully procedural WebAudio, scheduled on a 16th-note lookahead
+  clock. No audio files. Each road has its own bed: key, scale, lead pattern,
+  drum feel and timbres.
+  - *Golden Coast* — A minor, four on the floor, 126 bpm. The driving one.
+  - *Salt & Sand* — D major, half-time kit with plenty of air, 116 bpm.
+  - *Ridge Pass* — E phrygian at 132 bpm; the flat second is the reason this
+    road sounds like it is about to go wrong. Busiest kit of the four.
+  - *Dry Canyon* — A blues with a swung sixteenth, 128 bpm. Swagger.
+  - *Zen* keeps the road's key so it still sounds like that place, but drops
+    the kit entirely: root, fifth and a long pad at 76 bpm.
 - **Tracks** — seeded generation (mulberry32). The Daily seed is derived from the
   date, so every player gets a byte-identical road.
 - **Fonts** — Anton (display), IBM Plex Sans Condensed (UI), IBM Plex Mono (data),
