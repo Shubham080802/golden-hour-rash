@@ -522,7 +522,7 @@ const LOCALES = {
     hill:'#1E1330', hill2:'#2A1B3C',
     lanes:true, rails:true, bpm:126, propDensity:0.30,
     props:[{kind:'palm',scale:1.0},{kind:'palm',scale:0.8},{kind:'rock',scale:0.8},{kind:'sign',scale:0.55}],
-    terrain:{hillAmp:1.0, curveAmp:1.0, climb:0, straightBias:0.30, tight:0.16}
+    terrain:{hillAmp:1.0, curveAmp:1.0, climb:0, straightBias:0.30, tight:0.16}, aiSkill:0.00
   },
 
   dunes:{
@@ -539,7 +539,7 @@ const LOCALES = {
     hill:'#8E7A56', hill2:'#A08B63',
     lanes:false, rails:false, bpm:116, propDensity:0.36,
     props:[{kind:'grass',scale:0.5},{kind:'grass',scale:0.4},{kind:'driftwood',scale:0.6},{kind:'rock',scale:0.55}],
-    terrain:{hillAmp:0.30, curveAmp:0.70, climb:0, straightBias:0.52, tight:0.05}
+    terrain:{hillAmp:0.30, curveAmp:0.70, climb:0, straightBias:0.52, tight:0.05}, aiSkill:0.00
   },
 
   ridge:{
@@ -556,7 +556,7 @@ const LOCALES = {
     hill:'#1A2630', hill2:'#26343F',
     lanes:true, rails:true, bpm:132, propDensity:0.42,
     props:[{kind:'pine',scale:1.0},{kind:'pine',scale:0.75},{kind:'boulder',scale:0.9},{kind:'sign',scale:0.55}],
-    terrain:{hillAmp:1.9, curveAmp:1.35, climb:1, straightBias:0.18, tight:0.34}
+    terrain:{hillAmp:1.9, curveAmp:1.35, climb:1, straightBias:0.18, tight:0.34}, aiSkill:0.20
   },
 
   canyon:{
@@ -573,7 +573,7 @@ const LOCALES = {
     hill:'#3A1D24', hill2:'#4E2A2A',
     lanes:true, rails:false, bpm:128, propDensity:0.26,
     props:[{kind:'cactus',scale:0.7},{kind:'mesa',scale:2.6,far:true},{kind:'boulder',scale:0.9},{kind:'cactus',scale:0.5}],
-    terrain:{hillAmp:0.70, curveAmp:1.35, climb:0, straightBias:0.42, tight:0.22}
+    terrain:{hillAmp:0.70, curveAmp:1.35, climb:0, straightBias:0.42, tight:0.22}, aiSkill:0.08
   }
 };
 const LOCALE_IDS = ['coast','dunes','ridge','canyon'];
@@ -789,6 +789,7 @@ const state = {
 
 function makeActors(){
   state.actors = [];
+  state.cars = []; state.riders = [];
   const zen = state.mode === 'zen';
   const carCount = zen ? 14 : 26;
   const carCols = ['#E8E2D4','#5C6EDB','#D8534F','#3FAE8C','#E0A93F','#8A7FBE'];
@@ -804,28 +805,45 @@ function makeActors(){
     });
   }
   if(!zen){
-    const riderCols = [
-      {bike:'#E2453F', suit:'#241B33', name:'VEX'},
-      {bike:'#3D7FE0', suit:'#1F2A3D', name:'MARLA'},
-      {bike:'#E0B23A', suit:'#2E2416', name:'HOYT'},
-      {bike:'#42C48C', suit:'#1B2E28', name:'DIZZY'},
-      {bike:'#B357D8', suit:'#2A1B36', name:'KADE'}
+    /* Each rider is a different person: how far ahead they read the road,
+       how hard they push, how cleanly they corner, how much they want a
+       fight. Traits come from `rng`, so a daily seed gives everyone the
+       same five personalities. */
+    const riders = [
+      {name:'VEX',   bike:'#E2453F', suit:'#241B33', skill:0.52, nerve:0.95, look:1100, aggro:0.90, line:-0.30},
+      {name:'MARLA', bike:'#3D7FE0', suit:'#1F2A3D', skill:0.92, nerve:0.88, look:2500, aggro:0.55, line: 0.10},
+      {name:'HOYT',  bike:'#E0B23A', suit:'#2E2416', skill:0.86, nerve:0.60, look:2300, aggro:0.30, line: 0.34},
+      {name:'DIZZY', bike:'#42C48C', suit:'#1B2E28', skill:0.46, nerve:0.68, look:1000, aggro:0.45, line:-0.12},
+      {name:'KADE',  bike:'#B357D8', suit:'#2A1B36', skill:0.71, nerve:0.82, look:1750, aggro:1.00, line: 0.02}
     ];
-    for(let i=0;i<riderCols.length;i++){
-      const c = riderCols[i];
+    const aiBump = LOCALES[state.locale].aiSkill || 0;
+    for(let i=0;i<riders.length;i++){
+      const c = riders[i];
       const lead = 3400 + i*2400;
+      const j = () => (rng()*2-1);
       state.actors.push({
         type:'rider',
         name:c.name, bike:c.bike, suit:c.suit,
+        skill: clamp(c.skill + aiBump + j()*0.07, 0.30, 0.97),
+        nerve: clamp(c.nerve + j()*0.07, 0.35, 1.00),
+        look:  c.look * (1 + j()*0.15),
+        aggro: clamp(c.aggro + j()*0.10, 0.15, 1.00),
+        line:  c.line + j()*0.10,
         dist: lead,
         z: (state.pos + PLAYER_Z + lead) % trackLength,
-        offset: (rng()*2-1)*0.72,
-        speed: MAX_SPEED * (0.62 + rng()*0.16),
-        stagger:0, swing:0, tell:0, knock:0, cd: 2.5 + rng()*3,
+        offset: c.line,
+        speed: MAX_SPEED * (0.62 + rng()*0.14),
+        steerV:0, stagger:0, swing:0, tell:0, knock:0, offTime:0, hitCd:0, wobble:0,
+        cd: 2.5 + rng()*3,
         drift: rng()*Math.PI*2
       });
     }
   }
+}
+
+function indexActors(){
+  state.cars   = state.actors.filter(a => a.type === 'car');
+  state.riders = state.actors.filter(a => a.type === 'rider');
 }
 
 /* ============================================================
@@ -1351,10 +1369,19 @@ function render(){
       const fade = clamp(1 - n/DRAW_DIST*0.85, 0, 1);
       if(sw < 1) continue;
       if(a.type === 'car') drawCar(sx, sy, sw*a.w, a.col, a.oncoming, fade);
-      else drawRider(sx, sy, sw*0.21, a.bike, a.suit, {
-        lean: a.lean||0, swing: a.swing, tell: a.tell, tellSide: a.tellSide,
-        swingSide: a.swingSide||1, stagger: a.stagger, alpha: fade
-      });
+      else {
+        drawRider(sx, sy, sw*0.21, a.bike, a.suit, {
+          lean: a.lean||0, swing: a.swing, tell: a.tell, tellSide: a.tellSide,
+          swingSide: a.swingSide||1, stagger: a.stagger, alpha: fade
+        });
+        if(a.offTime > 0.05 && sw > 6 && state.particles.length < 90 && Math.random() < 0.5){
+          state.particles.push({
+            x:sx, y:sy, vx:(Math.random()-0.5)*70, vy:-Math.random()*60,
+            r:1.5+Math.random()*3.5, life:0.45, max:0.6,
+            col:'rgba(214,196,165,.65)'
+          });
+        }
+      }
     }
     ctx.restore();
   }
@@ -1621,6 +1648,9 @@ function update(dt){
   else                         state.speed += DECEL*dt;
   if(state.dazed > 0){ state.dazed -= dt; state.speed += DECEL*dt*1.2; }
 
+  const scrub = Math.abs(pSeg.curve) * speedPct;
+  if(scrub > 2.2) state.speed -= (scrub - 2.2) * MAX_SPEED * 0.055 * dt;
+
   const off = Math.abs(state.playerX) > 0.97;
   if(off && state.speed > OFF_LIMIT){
     state.speed += OFF_DECEL*dt;
@@ -1677,32 +1707,116 @@ function update(dt){
       }
       if(Math.abs(d) > 900) a.near = false;
     } else {
-      // rivals: rubber-band so there's always someone within reach
+      /* Rivals ride, they don't follow a rail. They only read the road as
+         far ahead as their `look`, they fight the same centrifugal force
+         you do, they hit the same traffic, and running wide costs them
+         exactly what it costs you. Mistakes are emergent: carry more
+         speed into a corner than your skill supports and the corner
+         throws you off the outside. */
       const d = relZ(a.z - playerPos);
-      let target = state.speed;
-      if(d > 5200)       target = state.speed*0.82;
-      else if(d < -2600) target = state.speed*1.22 + 800;
-      if(a.knock > 0){ a.knock -= dt; target = state.speed*0.58; }
-      a.speed += (target - a.speed) * clamp(dt*1.4,0,1);
-      a.speed = clamp(a.speed, MAX_SPEED*0.25, MAX_SPEED*1.1);
+      const spd = a.speed / MAX_SPEED;
+
+      const hereSeg  = findSegment(a.z);
+      const aheadSeg = findSegment((a.z + a.look) % trackLength);
+      const curveNow = hereSeg.curve;
+      const curveSeen = aheadSeg.curve;
+
+      // --- pace: their own nerve first, the pack only as a nudge ---
+      /* Inside a wide dead zone the order is decided by how they ride.
+         Outside it the pack is gathered back up — and a rider who has
+         dropped out of sight closes hard, because nobody is watching. */
+      let far = 0;
+      let target = MAX_SPEED * (0.66 + a.nerve*0.27);
+      if(d > 22000)      target = Math.min(target, Math.max(MAX_SPEED*0.42, state.speed*0.84));
+      else if(d > 9000)  target = Math.min(target, Math.max(MAX_SPEED*0.50, state.speed*0.96));
+      else if(d < -6000){
+        far = clamp((-d - 6000)/40000, 0, 1);
+        const ceil = MAX_SPEED * (1.02 + far*0.38);
+        target = Math.max(target, Math.min(ceil, state.speed*(1.10 + far*0.48) + 500));
+      }
+
+      // the corner they can see sets a speed they ought to respect —
+      // how much they actually respect it is their skill
+      let limit = MAX_SPEED * (0.60 + a.skill*0.36) / (1 + Math.abs(curveSeen)*0.13);
+      if(far > 0) limit *= 1.12 + far*0.60;
+      if(target > limit) target = lerp(target, limit, a.skill);
+
+      if(a.knock > 0){ a.knock -= dt; target *= 0.55; }
+      if(a.offTime > 0) target *= 0.60;
+      if(a.hitCd > 0) a.hitCd -= dt;
+
+      a.speed += (target - a.speed) * clamp(dt*1.15, 0, 1);
+      a.speed = clamp(a.speed, MAX_SPEED*0.22, MAX_SPEED*(1.06 + far*0.36));
+
+      // --- traffic: dodge what they can see, wear what they can't ---
+      let dodge = 0;
+      const cars = state.cars || [];
+      for(let ci=0; ci<cars.length; ci++){
+        const c = cars[ci];
+        const cz = relZ(c.z - a.z);
+        const lat = c.offset - a.offset;
+        if(cz > 0 && cz < a.look*0.75 && Math.abs(lat) < 0.34){
+          dodge -= (lat >= 0 ? 1 : -1) * (1 - cz/(a.look*0.75)) * a.skill;
+        }
+        if(a.hitCd <= 0 && Math.abs(cz) < 340 && Math.abs(lat) < 0.28){
+          a.hitCd = 1.1;
+          a.speed *= c.oncoming ? 0.60 : 0.74;
+          a.stagger = 0.55;
+          a.staggerDir = (a.offset >= c.offset) ? 1 : -1;
+          a.wobble = 1;
+          a.dist -= 140;
+        }
+      }
+
+      // --- steering, with reaction lag ---
+      a.drift += dt*0.7;
+      if(a.stagger > 0){
+        a.stagger -= dt;
+        a.offset += a.staggerDir * 1.5 * dt;
+      } else {
+        let want, react, authority;
+        if(Math.abs(a.offset) > 0.95){
+          // off the road and scrambling back on — full attention, no finesse
+          want = 0; react = 6.0; authority = 2.1;
+        } else {
+          want = a.line + Math.sin(a.drift)*0.22 + clamp(dodge,-0.9,0.9)*0.55;
+          want += (curveSeen >= 0 ? 1 : -1) * Math.min(0.50, Math.abs(curveSeen)*0.075) * a.skill;
+          if(Math.abs(d) < 1700) want += (state.playerX - a.offset) * 0.24 * a.aggro;
+          want = clamp(want, -0.92, 0.92);
+          react = 1.1 + a.skill*2.6;
+          authority = 1.9;
+        }
+        a.steerV += (clamp(want - a.offset, -1, 1) - a.steerV) * clamp(dt*react, 0, 1);
+        a.offset += a.steerV * dt * authority;
+      }
+
+      // --- the corner pushes back, harder the more they overcooked it ---
+      const over = Math.max(0, a.speed - limit) / MAX_SPEED;
+      a.offset -= dt * 1.8 * spd * curveNow * CENTRIFUGAL * (1.7 - a.skill) * (1 + over*2.0);
+      a.offset = clamp(a.offset, -1.40, 1.40);
+
+      // --- running wide costs them ground, same as it costs you ---
+      if(Math.abs(a.offset) > 1.0){
+        a.offTime += dt;
+        a.speed *= (1 - dt*1.5);
+        a.wobble = Math.min(1, a.wobble + dt*3);
+        if(a.offTime > 1.8) a.offset += (a.offset > 0 ? -1 : 1) * dt * 1.8;
+      } else {
+        a.offTime = Math.max(0, a.offTime - dt*2);
+      }
+      a.wobble = Math.max(0, a.wobble - dt*1.6);
+
       a.z = (a.z + a.speed*dt) % trackLength;
       if(a.z < 0) a.z += trackLength;
       a.dist += a.speed*dt;
 
-      a.drift += dt*0.7;
-      if(a.stagger > 0){
-        a.stagger -= dt;
-        a.offset += (a.staggerDir*1.6) * dt;
-      } else {
-        const want = Math.sin(a.drift)*0.62 + (Math.abs(d) < 2200 ? (state.playerX - a.offset)*0.26 : 0);
-        a.offset += clamp(want - a.offset, -1, 1) * dt * 0.9;
-      }
-      a.offset = clamp(a.offset, -1.5, 1.5);
-      a.lean = clamp((a.offset - (a.prevOffset||a.offset))*30, -1, 1);
+      a.lean = clamp((a.offset - (a.prevOffset||a.offset))*30, -1, 1)
+             + a.wobble * Math.sin(state.frame*0.9) * 0.5;
       a.prevOffset = a.offset;
       if(a.swing > 0) a.swing -= dt*3.6;
 
-      // rival attacks — telegraphed, dodgeable, never fatal
+      // rival attacks — telegraphed, dodgeable, never fatal.
+      // A rider who is off-line or wobbling has no attention to spare.
       if(playing && !zen){
         const close = Math.abs(d) < 620 && Math.abs(a.offset - state.playerX) < 0.42;
         if(a.tell > 0){
@@ -1714,7 +1828,9 @@ function update(dt){
           }
         } else {
           a.cd -= dt;
-          if(a.cd <= 0 && close && a.stagger <= 0){ a.tell = 0.01; a.tellSide = a.offset > state.playerX ? -1 : 1; }
+          if(a.cd <= 0 && close && a.stagger <= 0 && a.offTime <= 0 && a.wobble < 0.2){
+            a.tell = 0.01; a.tellSide = a.offset > state.playerX ? -1 : 1;
+          }
         }
       }
     }
@@ -1838,7 +1954,8 @@ function packOrder(){
   const rows = [{ name:'YOU', dist:state.dist, col:'#FF7A3C', you:true }];
   for(const a of state.actors){
     if(a.type !== 'rider') continue;
-    rows.push({ name:a.name, dist:a.dist, col:a.bike, you:false, struck:a.knock > 0 });
+    rows.push({ name:a.name, dist:a.dist, col:a.bike, you:false,
+                struck: a.knock > 0 || a.offTime > 0.15 || a.hitCd > 0.5 });
   }
   rows.sort((x,y) => y.dist - x.dist);
   return rows;
@@ -1953,6 +2070,7 @@ function resetRide(){
   standCache = '';
   state.ended = false;
   makeActors();
+  indexActors();
 }
 function dailyLocale(){ return LOCALE_IDS[hashStr('LOC-' + todayKey()) % LOCALE_IDS.length]; }
 
