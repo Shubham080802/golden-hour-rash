@@ -103,6 +103,22 @@
   .combo-fill{height:100%;width:0%;background:var(--hot)}
   .hud-combo.idle{opacity:.38}
 
+  .standings{position:absolute;left:16px;top:25%;width:clamp(126px,17%,168px)}
+  .standings-head{display:flex;justify-content:space-between;align-items:baseline;gap:6px;margin-bottom:5px}
+  .standings-head .pos{font-family:var(--display);font-size:14px;color:var(--sun);line-height:1;letter-spacing:.02em}
+  .standings ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+  .standings li{
+    display:grid;grid-template-columns:12px 7px 1fr auto;gap:6px;align-items:center;
+    padding:3px 6px;border-radius:3px;background:rgba(12,6,24,.55);
+    font-family:var(--data);font-size:10px;color:var(--muted);letter-spacing:.05em;
+  }
+  .standings li.you{background:rgba(255,194,74,.18);color:var(--cream);box-shadow:inset 2px 0 0 var(--sun)}
+  .standings li.struck{background:rgba(255,63,107,.24);color:var(--cream)}
+  .standings .dot{width:7px;height:7px;border-radius:50%}
+  .standings .rn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .standings .gp{font-variant-numeric:tabular-nums;font-size:9px;opacity:.85}
+  .standings[hidden]{display:none}
+
   .callout{
     position:absolute;left:50%;top:27%;transform:translateX(-50%);text-align:center;
     pointer-events:none;
@@ -158,6 +174,17 @@
   .stat .tag{margin-bottom:4px}
   .stat .v{font-family:var(--display);font-size:23px;line-height:1;font-variant-numeric:tabular-nums}
   .stat:first-child .v{color:var(--sun)}
+
+  .finalpack{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;margin:0 0 16px}
+  .finalpack .chip{
+    display:flex;align-items:center;gap:6px;padding:5px 9px;border-radius:3px;
+    background:rgba(255,241,222,.05);border:1px solid var(--line);
+    font-family:var(--data);font-size:10.5px;letter-spacing:.06em;color:var(--muted);
+  }
+  .finalpack .chip.you{background:rgba(255,194,74,.16);border-color:rgba(255,194,74,.45);color:var(--cream)}
+  .finalpack .chip .p{opacity:.6}
+  .finalpack .chip .d{width:7px;height:7px;border-radius:50%}
+  .finalpack[hidden]{display:none}
 
   .bigscore{font-family:var(--display);font-size:clamp(46px,9vw,84px);line-height:.86;color:var(--sun);letter-spacing:.01em;font-variant-numeric:tabular-nums;margin-bottom:2px}
   .pb{font-family:var(--data);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:18px}
@@ -261,6 +288,13 @@
         <div class="combo-n"><span id="comboN">0</span><small id="comboMult">×1</small></div>
         <div class="combo-rail"><div class="combo-fill" id="comboFill"></div></div>
       </div>
+      <div class="standings" id="standings" hidden>
+        <div class="standings-head">
+          <span class="tag" style="margin:0">Pack</span>
+          <span class="pos" id="posN">P1</span>
+        </div>
+        <ol id="standList"></ol>
+      </div>
       <div class="callout" id="callout" hidden>
         <div class="cal-arrows" id="calArrows">&gt;&gt;&gt;</div>
         <div class="cal-label" id="calLabel">Right 4</div>
@@ -338,8 +372,9 @@
           <div class="stat"><div class="tag">Best combo</div><div class="v" id="sCombo">0</div></div>
           <div class="stat"><div class="tag">Hits landed</div><div class="v" id="sHits">0</div></div>
           <div class="stat"><div class="tag">Near misses</div><div class="v" id="sNear">0</div></div>
-          <div class="stat"><div class="tag">Distance</div><div class="v" id="sDist">0</div></div>
+          <div class="stat"><div class="tag">Finished</div><div class="v" id="sPos">—</div></div>
         </div>
+        <div class="finalpack" id="finalPack" hidden></div>
         <div class="row">
           <button class="btn" id="againBtn">Ride again</button>
           <button class="btn ghost" id="menuBtn">Change mode</button>
@@ -699,16 +734,18 @@ function makeActors(){
   }
   if(!zen){
     const riderCols = [
-      {bike:'#E2453F', suit:'#241B33'}, {bike:'#3D7FE0', suit:'#1F2A3D'},
-      {bike:'#E0B23A', suit:'#2E2416'}, {bike:'#42C48C', suit:'#1B2E28'},
-      {bike:'#B357D8', suit:'#2A1B36'}
+      {bike:'#E2453F', suit:'#241B33', name:'VEX'},
+      {bike:'#3D7FE0', suit:'#1F2A3D', name:'MARLA'},
+      {bike:'#E0B23A', suit:'#2E2416', name:'HOYT'},
+      {bike:'#42C48C', suit:'#1B2E28', name:'DIZZY'},
+      {bike:'#B357D8', suit:'#2A1B36', name:'KADE'}
     ];
     for(let i=0;i<riderCols.length;i++){
       const c = riderCols[i];
       const lead = 3400 + i*2400;
       state.actors.push({
         type:'rider',
-        bike:c.bike, suit:c.suit,
+        name:c.name, bike:c.bike, suit:c.suit,
         dist: lead,
         z: (state.pos + PLAYER_Z + lead) % trackLength,
         offset: (rng()*2-1)*0.72,
@@ -1525,7 +1562,7 @@ function update(dt){
           a.tell += dt*2.4;
           if(a.tell >= 1){
             a.tell = 0; a.cd = 3.2 + Math.random()*3;
-            if(close && state.dazed <= 0) clipped(state.playerX >= a.offset ? 1 : -1);
+            if(close && state.dazed <= 0) clipped(state.playerX >= a.offset ? 1 : -1, a.name);
             else { a.swing = 1; a.swingSide = a.offset > state.playerX ? -1 : 1; }
           }
         } else {
@@ -1584,7 +1621,7 @@ function collide(severity){
   }
   burst(W/2, H*0.8, '#FF7A3C', 14);
 }
-function clipped(side){
+function clipped(side, who){
   state.speed *= 0.94;
   state.shove = (side || 1) * 1.15;
   state.dazed = 0.45;
@@ -1593,7 +1630,7 @@ function clipped(side){
   state.hitStop = 0.07;
   sfx.clip();
   burst(W/2, H*0.76, '#FF3F6B', 18);
-  if(state.combo > 0) pop('CLIPPED — combo lost', '#FF3F6B');
+  pop(who ? 'CLIPPED BY ' + who : 'CLIPPED', '#FF3F6B');
   state.combo = 0;
 }
 
@@ -1631,7 +1668,7 @@ function trySwing(){
     state.flash = 0.4; state.flashColor = '#FFC24A';
     sfx.hit();
     burst(W/2 + state.swingSide*W*0.14, H*0.74, '#FFC24A', 16);
-    addCombo(1, 'HIT', '#FF3F6B', 130);
+    addCombo(1, 'HIT · ' + best.name, '#FF3F6B', 130);
   } else {
     sfx.whiff();
   }
@@ -1647,6 +1684,48 @@ const el = {
   title:$('titleScreen'), end:$('endScreen'), pause:$('pauseScreen'),
   seed:$('seedStamp'), foot:$('footStatus')
 };
+/* Standings rank on total ground covered, which on a looping road is the
+   only definition that stays honest. A rival's dist minus yours IS the gap
+   you can see down the road, so the board never disagrees with your eyes. */
+function packOrder(){
+  const rows = [{ name:'YOU', dist:state.dist, col:'#FF7A3C', you:true }];
+  for(const a of state.actors){
+    if(a.type !== 'rider') continue;
+    rows.push({ name:a.name, dist:a.dist, col:a.bike, you:false, struck:a.knock > 0 });
+  }
+  rows.sort((x,y) => y.dist - x.dist);
+  return rows;
+}
+let standCache = '', standAt = 0;
+function updateStandings(){
+  const box = $('standings');
+  if(!box) return;
+  if(state.phase !== 'playing' || state.mode === 'zen'){ box.hidden = true; return; }
+  box.hidden = false;
+
+  const rows = packOrder();
+  const mine = rows.findIndex(r => r.you);
+  $('posN').textContent = 'P' + (mine+1) + '/' + rows.length;
+
+  const now = performance.now();
+  const key = rows.map(r => r.name + (r.struck?'!':'') + Math.round((r.dist-state.dist)/100)).join('|');
+  if(key === standCache || now - standAt < 120) return;
+  standCache = key; standAt = now;
+
+  const list = $('standList');
+  list.innerHTML = rows.map((r,i) => {
+    const gap = Math.round((r.dist - state.dist)/100);
+    const gapTxt = r.you ? '—' : (gap>=0 ? '+' : '') + gap + 'm';
+    const cls = r.you ? 'you' : (r.struck ? 'struck' : '');
+    return '<li class="' + cls + '">' +
+      '<span class="pn">' + (i+1) + '</span>' +
+      '<span class="dot" style="background:' + r.col + '"></span>' +
+      '<span class="rn">' + r.name + '</span>' +
+      '<span class="gp">' + gapTxt + '</span>' +
+    '</li>';
+  }).join('');
+}
+
 function updateCallout(){
   const c = $('callout');
   if(!c) return;
@@ -1693,6 +1772,7 @@ function syncHUD(){
   el.comboFill.style.width = clamp(state.comboT/4.2*100,0,100)+'%';
   el.comboBox.classList.toggle('idle', state.combo === 0);
   el.comboBox.style.display = zen ? 'none' : '';
+  updateStandings();
   updateCallout();
 }
 
@@ -1721,6 +1801,7 @@ function resetRide(){
   state.swing = 0; state.swingCd = 0; state.dazed = 0;
   state.shake = 0; state.hitStop = 0; state.flash = 0;
   state.particles = []; state.pops = []; state.lean = 0; state.shove = 0;
+  standCache = '';
   state.ended = false;
   makeActors();
 }
@@ -1758,6 +1839,7 @@ function startMode(mode, diff){
   state.phase = 'playing';
   el.title.hidden = true; el.end.hidden = true; el.pause.hidden = true;
   $('callout').hidden = true;
+  $('standings').hidden = (mode === 'zen');
   el.hud.classList.add('on');
   $('cabinet').focus();
   musicStart();
@@ -1787,13 +1869,32 @@ function resumeGame(){
 
 function showResults(){
   const zen = state.mode === 'zen';
-  $('endKicker').textContent = zen ? 'Ride ended' : (state.mode==='daily' ? "Today's road, finished" : 'Track finished');
+  const diffName = state.diff === 'easy' ? 'Guided' : 'Blind';
+  $('endKicker').textContent = zen ? 'Ride ended'
+    : (state.mode==='daily' ? "Today's road · " + diffName : 'Track finished');
   $('endScore').textContent = zen ? '—' : Math.floor(state.score).toLocaleString();
   $('endScore').style.color = zen ? 'var(--mint)' : 'var(--sun)';
   $('sCombo').textContent = zen ? '—' : state.bestCombo;
   $('sHits').textContent  = zen ? '—' : state.hits;
   $('sNear').textContent  = zen ? '—' : state.near;
-  $('sDist').textContent = (state.dist/1000).toFixed(1) + ' km';
+  const fp = $('finalPack');
+  if(zen){
+    $('sPos').textContent = '—';
+    fp.hidden = true;
+  } else {
+    const rows = packOrder();
+    const mine = rows.findIndex(r => r.you) + 1;
+    const sfxN = mine===1 ? 'st' : mine===2 ? 'nd' : mine===3 ? 'rd' : 'th';
+    $('sPos').textContent = mine + sfxN + ' / ' + rows.length;
+    fp.hidden = false;
+    fp.innerHTML = rows.map((r,i) =>
+      '<span class="chip' + (r.you?' you':'') + '">' +
+        '<span class="p">' + (i+1) + '</span>' +
+        '<span class="d" style="background:' + r.col + '"></span>' +
+        '<span>' + r.name + '</span>' +
+      '</span>').join('');
+  }
+
   const key = 'ghr.best.' + state.mode + (state.mode === 'daily' ? '.' + state.diff : '');
   let pbText = ' ';
   if(!zen){
