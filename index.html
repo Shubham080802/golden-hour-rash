@@ -192,6 +192,40 @@
   .stat:first-child .v{color:var(--sun)}
 
   .panel{max-height:100%;overflow-y:auto}
+  .rec-pick{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:8px}
+  .rec-pick button{
+    appearance:none;cursor:pointer;font-family:var(--data);font-size:10px;letter-spacing:.12em;
+    text-transform:uppercase;padding:6px 10px;border-radius:3px;color:var(--muted);
+    background:rgba(255,241,222,.04);border:1px solid var(--line);transition:all .15s;
+  }
+  .rec-pick button:hover{color:var(--cream);border-color:rgba(255,241,222,.3)}
+  .rec-pick button.on{background:var(--cream);color:var(--ink);border-color:var(--cream)}
+  .rec-pick button:focus-visible{outline:2px solid var(--sun);outline-offset:2px}
+  .rec-sum{
+    display:flex;justify-content:center;gap:18px;flex-wrap:wrap;margin:14px 0 16px;
+    font-family:var(--data);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
+  }
+  .rec-sum b{color:var(--cream);font-weight:600;font-variant-numeric:tabular-nums}
+  .rec-cols{display:grid;grid-template-columns:1fr 1fr;gap:18px;text-align:left}
+  @media (max-width:600px){.rec-cols{grid-template-columns:1fr;gap:16px}}
+  .rec-cols h3{
+    font-family:var(--data);font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--muted);margin:0 0 8px;font-weight:400;border-bottom:1px solid var(--line);padding-bottom:6px;
+  }
+  .rec-cols ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px}
+  .rec-cols li{
+    display:grid;grid-template-columns:20px 1fr auto auto;gap:8px;align-items:baseline;
+    padding:5px 8px;border-radius:3px;background:rgba(255,241,222,.04);font-size:12.5px;
+  }
+  .rec-cols li.top{background:rgba(255,194,74,.15);box-shadow:inset 2px 0 0 var(--sun)}
+  .rec-cols .rk{font-family:var(--data);font-size:10px;color:var(--muted)}
+  .rec-cols .val{font-family:var(--data);font-weight:600;font-variant-numeric:tabular-nums;color:var(--sun)}
+  .rec-cols .meta,.rec-cols .when{font-family:var(--data);font-size:9.5px;color:var(--muted);text-align:right}
+  .rec-cols .empty{
+    background:none;display:block;padding:8px 2px;font-family:var(--ui);font-size:12px;
+    color:var(--muted);line-height:1.5;
+  }
+
   .classif{margin:0 0 16px;text-align:left}
   .classif[hidden]{display:none}
   .classif-head,.classif li{
@@ -378,6 +412,7 @@
           </button>
         </div>
         <p class="note" style="text-align:center">Best with sound on — the run is scored to the track, and the road spawns on the beat.</p>
+        <div class="row" style="margin-top:12px"><button class="btn ghost" id="recOpen">Record room · R</button></div>
       </div>
     </div>
 
@@ -436,6 +471,23 @@
           </div>
           <p class="note" id="boardNote">Scores are per handle — posting again only replaces your own if it's higher.</p>
         </div>
+      </div>
+    </div>
+
+    <!-- record room -->
+    <div class="scrim" id="recordsScreen" hidden>
+      <div class="panel">
+        <div class="kicker">Record room</div>
+        <h2 id="recTitle">Golden Coast</h2>
+        <div class="rec-pick" id="recRoads"></div>
+        <div class="rec-pick" id="recModes"></div>
+        <div class="rec-sum" id="recSum"></div>
+        <div class="rec-cols">
+          <div><h3>Top scores</h3><ol id="recScores"></ol></div>
+          <div><h3>Fastest kilometre</h3><ol id="recSplits"></ol></div>
+        </div>
+        <p class="note" style="text-align:center">Records are kept per road and per format, on this device.</p>
+        <div class="row" style="margin-top:12px"><button class="btn ghost" id="recBack">Back</button></div>
       </div>
     </div>
 
@@ -815,7 +867,7 @@ const state = {
   swing:0, swingSide:1, swingCd:0, dazed:0,
   shake:0, hitStop:0, flash:0, flashColor:'#FF3F6B',
   seed:0, seedLabel:'', diff:'hard', guide:false, shove:0, diffOpen:false,
-  trace:[], sampleT:0, topSpeed:0,
+  trace:[], sampleT:0, topSpeed:0, recOpen:false,
   locale:'coast', pickedLocale:'coast',
   actors:[], particles:[], pops:[],
   frame:0, ended:false
@@ -2159,7 +2211,9 @@ function startAttract(){
   state.phase = 'title';
   state.guide = false;
   state.diffOpen = false;
+  state.recOpen = false;
   $('diffScreen').hidden = true;
+  $('recordsScreen').hidden = true;
   el.hud.classList.remove('on');
   el.title.hidden = false; el.end.hidden = true; el.pause.hidden = true;
   el.seed.textContent = LOCALES[state.locale].name.toLowerCase();
@@ -2219,6 +2273,8 @@ function setLocale(id){
 
 function openDiff(){
   state.diffOpen = true;
+  closeRecords();
+  $('titleScreen').hidden = true;
   $('diffDate').textContent = todayKey() + ' · ' + LOCALES[dailyLocale()].name;
   $('titleScreen').hidden = true;
   $('diffScreen').hidden = false;
@@ -2318,6 +2374,20 @@ function showResults(){
     const names = $('classifRows').querySelectorAll('.cName');
     rows.forEach((r,i) => { if(names[i]) names[i].textContent = r.name; });
 
+    const me = rows[mine-1];
+    recordRun({
+      ts: Date.now(),
+      score: Math.floor(state.score),
+      combo: state.bestCombo,
+      hits: state.hits,
+      near: state.near,
+      pos: mine,
+      of: rows.length,
+      fkm: me.fkm,
+      kmh: me.kmh,
+      gap: me.gap
+    });
+
     const fast = rows.find(r => r.purple);
     $('fkmNote').innerHTML = fast
       ? 'Fastest kilometre <b>' + fmtSplit(fast.fkm) + '</b> · ' + (fast.you ? 'you' : fast.name.toLowerCase())
@@ -2346,7 +2416,95 @@ function showResults(){
 }
 
 /* ============================================================
-   13 · daily board (shared, async — the whole competitive design)
+   13 · record room — every finished race, kept per road and format
+   ============================================================ */
+const REC_KEY = 'ghr.records.v1';
+const REC_MODES = [
+  {id:'run',           label:'Run'},
+  {id:'daily:easy',    label:'Daily · Guided'},
+  {id:'daily:hard',    label:'Daily · Blind'}
+];
+function loadRecords(){
+  try { return JSON.parse(localStorage.getItem(REC_KEY) || '{}') || {}; }
+  catch(e){ return {}; }
+}
+function saveRecords(r){ try { localStorage.setItem(REC_KEY, JSON.stringify(r)); } catch(e){} }
+function formatKey(mode, locale, diff){
+  return mode === 'daily' ? 'daily:' + locale + ':' + diff : mode + ':' + locale;
+}
+/* Two capped lists per format rather than one: a top-10 by score alone would
+   bound the split table to whatever those ten runs happened to do. */
+function recordRun(e){
+  const all = loadRecords();
+  const k = formatKey(state.mode, state.locale, state.diff);
+  const f = all[k] || { scores:[], splits:[], runs:0 };
+  f.runs = (f.runs || 0) + 1;
+  f.scores = f.scores.concat([e]).sort((a,b) => b.score - a.score).slice(0,10);
+  if(e.fkm != null){
+    f.splits = f.splits.concat([e]).sort((a,b) => a.fkm - b.fkm).slice(0,10);
+  }
+  f.bestPos = Math.min(f.bestPos || 99, e.pos);
+  f.bestCombo = Math.max(f.bestCombo || 0, e.combo);
+  all[k] = f;
+  saveRecords(all);
+}
+
+let recRoad = 'coast', recMode = 'run';
+const shortDate = ts => new Date(ts).toLocaleDateString(undefined,{day:'numeric',month:'short'});
+const ordinal = n => n + (n===1?'st':n===2?'nd':n===3?'rd':'th');
+
+function openRecords(){
+  recRoad = state.pickedLocale;
+  $('titleScreen').hidden = true;
+  $('recordsScreen').hidden = false;
+  state.recOpen = true;
+  drawRecords();
+}
+function closeRecords(){
+  state.recOpen = false;
+  $('recordsScreen').hidden = true;
+  if(state.phase === 'title') $('titleScreen').hidden = false;
+}
+function drawRecords(){
+  $('recRoads').innerHTML = LOCALE_IDS.map(id =>
+    '<button data-r="' + id + '" class="' + (id===recRoad?'on':'') + '">' + LOCALES[id].name + '</button>').join('');
+  $('recModes').innerHTML = REC_MODES.map(m =>
+    '<button data-m="' + m.id + '" class="' + (m.id===recMode?'on':'') + '">' + m.label + '</button>').join('');
+  $('recRoads').querySelectorAll('button').forEach(b => b.onclick = ()=>{ recRoad = b.dataset.r; drawRecords(); });
+  $('recModes').querySelectorAll('button').forEach(b => b.onclick = ()=>{ recMode = b.dataset.m; drawRecords(); });
+
+  const parts = recMode.split(':');
+  const key = formatKey(parts[0], recRoad, parts[1]);
+  const f = loadRecords()[key] || { scores:[], splits:[], runs:0 };
+  const modeLabel = (REC_MODES.find(m => m.id === recMode) || {}).label;
+  $('recTitle').textContent = LOCALES[recRoad].name;
+
+  $('recSum').innerHTML =
+    'Races <b>' + (f.runs||0) + '</b>' +
+    '<span>Best finish <b>' + (f.bestPos ? ordinal(f.bestPos) : '—') + '</b></span>' +
+    '<span>Best combo <b>' + (f.bestCombo || 0) + '</b></span>' +
+    '<span>' + modeLabel + '</span>';
+
+  const rowsHtml = (list, fmt, meta) => list.length
+    ? list.map((e,i) =>
+        '<li class="' + (i===0?'top':'') + '">' +
+          '<span class="rk">' + (i+1) + '</span>' +
+          '<span class="val">' + fmt(e) + '</span>' +
+          '<span class="meta">' + meta(e) + '</span>' +
+          '<span class="when">' + shortDate(e.ts) + '</span>' +
+        '</li>').join('')
+    : '<li class="empty">Nothing recorded here yet. Finish a race on this road in this format and it lands at the top.</li>';
+
+  $('recScores').innerHTML = rowsHtml(f.scores,
+    e => Math.round(e.score).toLocaleString(),
+    e => '×' + e.combo + ' · ' + ordinal(e.pos));
+  $('recSplits').innerHTML = rowsHtml(f.splits,
+    e => e.fkm.toFixed(2) + 's',
+    e => e.kmh + ' km/h · ' + ordinal(e.pos));
+}
+
+/* ============================================================
+   14 · daily board (shared, async — the whole competitive design)
    ============================================================ */
 let DB = null, dbTried = false;
 async function getDB(){
@@ -2435,7 +2593,7 @@ async function postScore(){
 }
 
 /* ============================================================
-   14 · input
+   15 · input
    ============================================================ */
 const keys = {};
 function keyDown(e){
@@ -2445,6 +2603,11 @@ function keyDown(e){
   keys[k] = true;
 
   if(state.phase === 'title'){
+    if(state.recOpen){
+      if(k==='Escape' || k==='r' || k==='R') closeRecords();
+      return;
+    }
+    if(k==='r' || k==='R'){ openRecords(); return; }
     if(state.diffOpen){
       if(k==='e'||k==='E') startMode('daily','easy');
       else if(k==='h'||k==='H') startMode('daily','hard');
@@ -2502,13 +2665,15 @@ $('dHard').onclick  = ()=>startMode('daily','hard');
 $('diffBack').onclick = ()=>closeDiff(true);
 $('againBtn').onclick = ()=>startMode(state.mode, state.diff);
 $('menuBtn').onclick  = ()=>{ el.end.hidden = true; startAttract(); };
+$('recOpen').onclick  = openRecords;
+$('recBack').onclick  = closeRecords;
 $('resumeBtn').onclick= resumeGame;
 $('quitBtn').onclick  = ()=>{ el.pause.hidden = true; finish(); };
 $('postBtn').onclick  = postScore;
 $('handle').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); postScore(); } });
 
 /* ============================================================
-   15 · loop
+   16 · loop
    ============================================================ */
 let last = performance.now();
 function frame(now){
@@ -2526,6 +2691,7 @@ buildLocalePicker();
 startAttract();
 requestAnimationFrame(frame);
 getDB();
+
 
 
 

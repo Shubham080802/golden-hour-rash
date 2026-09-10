@@ -53,6 +53,23 @@ every turn) and **Blind** (nothing but the road). These keep **separate boards**
 difficulty is a choice rather than a handicap, and Guided works as the on-ramp where
 you learn today's seed before riding it blind for the higher board.
 
+### Classification and records
+
+A run ends when the song ends, not at a finish line, so a "gap" needs a
+definition. Every racer records a distance/time trace, and the gap to the
+leader is **the time at which the leader was at your final distance** — which
+is exactly what a timing screen reports at a real finish. The results screen
+lays this out F1-style: position, gap to leader, interval to the rider ahead,
+top speed, and the run's **fastest kilometre** marked in purple.
+
+Press **R** on the title screen for the **record room**: top ten scores and
+top ten fastest kilometres, kept separately for every road and every format
+(Run, Daily Guided, Daily Blind), plus races run, best finish and best combo.
+Two capped lists rather than one, because a top-ten by score alone would
+bound the split table to whatever those ten runs happened to do.
+
+Records are per device (`localStorage`). Only the Daily board is shared.
+
 ## Roads
 
 Each locale owns its palette, sky, road surface, scenery *and* terrain profile, so
