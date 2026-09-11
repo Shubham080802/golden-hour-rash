@@ -10,10 +10,14 @@ Open `index.html` in a browser. No build step, no dependencies, no assets.
 ↓       brake
 J/Space swing
 Esc     pause / end ride
+M       music on / off
+R       record room (title screen)
 ```
 
 Turn sound on — the run is scored to a procedurally generated track and the road
-pulses on the kick.
+pulses on the kick. **M** mutes the music at any time and the choice sticks;
+hit and crash sounds keep playing, so you lose the soundtrack without losing
+the feedback that tells you what just happened.
 
 ---
 

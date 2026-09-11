@@ -56,6 +56,19 @@
     background:linear-gradient(96deg,var(--sun) 0%,var(--ember) 48%,var(--hot) 100%);
     -webkit-background-clip:text;background-clip:text;color:transparent;
   }
+  .mast-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .mute{
+    appearance:none;cursor:pointer;font-family:var(--data);background:rgba(255,241,222,.05);
+    color:var(--cream);transition:color .15s,border-color .15s,background .15s;
+  }
+  .mute:hover{border-color:rgba(255,241,222,.4)}
+  .mute:focus-visible{outline:2px solid var(--sun);outline-offset:2px}
+  .mute.off{color:var(--muted);background:transparent}
+  .mute.off::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;
+    background:var(--hot);margin-right:6px;vertical-align:middle}
+  .mute:not(.off)::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;
+    background:var(--mint);margin-right:6px;vertical-align:middle}
+
   .stamp{
     font-family:var(--data);font-size:10px;letter-spacing:.18em;text-transform:uppercase;
     color:var(--muted);border:1px solid var(--line);border-radius:2px;padding:4px 8px;white-space:nowrap;
@@ -387,7 +400,10 @@
       </div>
       <p style="margin-top:8px">Four roads, one song per run, no way to lose. Combat is the release valve; the clock is a track&nbsp;progress bar, not a countdown.</p>
     </div>
-    <div class="stamp" id="seedStamp">seed —</div>
+    <div class="mast-right">
+      <button class="stamp mute" id="muteBtn" aria-pressed="false">Music on</button>
+      <div class="stamp" id="seedStamp">seed —</div>
+    </div>
   </header>
 
   <div class="cabinet" id="cabinet" tabindex="0" aria-label="Golden Hour Rash game screen">
@@ -429,6 +445,7 @@
         <div><b>← →</b> steer</div>
         <div><b>J / space</b> swing</div>
         <div><b>Esc</b> end ride</div>
+        <div><b>M</b> music</div>
       </div>
     </div>
 
@@ -843,8 +860,29 @@ function findSegment(z){ return segments[Math.floor(z/SEG_LEN) % segments.length
 /* ============================================================
    3 · audio — procedural, one "song" per run
    ============================================================ */
-const AU = { ctx:null, master:null, music:null, sfx:null, on:false, bpm:126,
-             next:0, step:0, timer:null, noise:null, beat:0 };
+const AU = { ctx:null, master:null, music:null, musicMute:null, sfx:null, on:false, bpm:126,
+             next:0, step:0, timer:null, noise:null, beat:0, muted:false };
+
+/* Muting rides on its own gain node between the music bus and the master, so
+   it is independent of the start/stop fades and survives them either way.
+   Hit and crash sounds are deliberately untouched — you can silence the
+   soundtrack without losing the feedback that tells you what just happened. */
+function setMuted(v, quiet){
+  AU.muted = !!v;
+  try { localStorage.setItem('ghr.music', AU.muted ? '0' : '1'); } catch(e){}
+  if(AU.ctx && AU.musicMute){
+    AU.musicMute.gain.cancelScheduledValues(AU.ctx.currentTime);
+    AU.musicMute.gain.setTargetAtTime(AU.muted ? 0 : 1, AU.ctx.currentTime, 0.04);
+  }
+  const b = $('muteBtn');
+  if(b){
+    b.textContent = AU.muted ? 'Music off' : 'Music on';
+    b.classList.toggle('off', AU.muted);
+    b.setAttribute('aria-pressed', AU.muted ? 'true' : 'false');
+  }
+  if(!quiet && !AU.muted && AU.ctx && AU.ctx.state === 'suspended') AU.ctx.resume();
+}
+function toggleMute(){ setMuted(!AU.muted); }
 
 function auInit(){
   if(AU.ctx) return;
@@ -852,7 +890,10 @@ function auInit(){
   if(!AC) return;
   AU.ctx = new AC();
   AU.master = AU.ctx.createGain(); AU.master.gain.value = 0.85; AU.master.connect(AU.ctx.destination);
-  AU.music  = AU.ctx.createGain(); AU.music.gain.value  = 0.34; AU.music.connect(AU.master);
+  AU.musicMute = AU.ctx.createGain();
+  AU.musicMute.gain.value = AU.muted ? 0 : 1;
+  AU.musicMute.connect(AU.master);
+  AU.music  = AU.ctx.createGain(); AU.music.gain.value  = 0.34; AU.music.connect(AU.musicMute);
   AU.sfx    = AU.ctx.createGain(); AU.sfx.gain.value    = 0.5;  AU.sfx.connect(AU.master);
   const len = AU.ctx.sampleRate * 1.0;
   AU.noise = AU.ctx.createBuffer(1, len, AU.ctx.sampleRate);
@@ -2962,6 +3003,7 @@ async function postScore(){
 const keys = {};
 function keyDown(e){
   const k = e.key;
+  if(k === 'm' || k === 'M'){ toggleMute(); return; }
   if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(k)) e.preventDefault();
   if(keys[k]) return;
   keys[k] = true;
@@ -3029,6 +3071,7 @@ $('dHard').onclick  = ()=>startMode('daily','hard');
 $('diffBack').onclick = ()=>closeDiff(true);
 $('againBtn').onclick = ()=>startMode(state.mode, state.diff);
 $('menuBtn').onclick  = ()=>{ el.end.hidden = true; startAttract(); };
+$('muteBtn').onclick  = toggleMute;
 $('recOpen').onclick  = openRecords;
 $('recBack').onclick  = closeRecords;
 $('resumeBtn').onclick= resumeGame;
@@ -3051,10 +3094,12 @@ function frame(now){
 
 resize();
 try { const sv = localStorage.getItem('ghr.locale'); if(sv && LOCALES[sv]){ state.pickedLocale = sv; state.locale = sv; } } catch(e){}
+try { setMuted(localStorage.getItem('ghr.music') === '0', true); } catch(e){ setMuted(false, true); }
 buildLocalePicker();
 startAttract();
 requestAnimationFrame(frame);
 getDB();
+
 
 
 
