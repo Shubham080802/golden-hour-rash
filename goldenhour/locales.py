@@ -1,0 +1,128 @@
+"""The four roads.
+
+Each locale owns its palette, road surface, scenery, terrain profile *and*
+music bed, so the roads differ in the shape of the road and the sound of the
+race, not just in colour.
+"""
+from .config import hexc
+
+LOCALES = {
+    "coast": {
+        "name": "Golden Coast",
+        "blurb": "Dusk highway, long sweepers, rolling hills",
+        "track": "Coast Road (Dusk Mix)",
+        "light": {"road": hexc("#463E4C"), "grass": hexc("#3B2E31"), "rumble": hexc("#B9503E"),
+                  "lane": hexc("#EADEC6"), "trackw": hexc("#3B333F"), "edge": hexc("#E4D8BE"),
+                  "rail": hexc("#6B6273")},
+        "dark": {"road": hexc("#3E3745"), "grass": hexc("#352930"), "rumble": hexc("#E4D8BE"),
+                 "lane": None, "trackw": hexc("#352E3A"), "edge": hexc("#E4D8BE"),
+                 "rail": hexc("#5E5666")},
+        "sky_stops": [(0.0, hexc("#1B1038")), (0.28, hexc("#3A1B54")), (0.52, hexc("#6E2A5E")),
+                      (0.72, hexc("#B8443F")), (0.87, hexc("#E9743A")), (1.0, hexc("#EFA168"))],
+        "horizon": hexc("#EFA168"), "sun": hexc("#FFD27A"), "accent": hexc("#D8503F"),
+        "cloud_hi": hexc("#FFC58E"), "cloud_lo": hexc("#6B2F52"),
+        "ridge_far": hexc("#4A2A50"), "ridge_near": hexc("#241634"),
+        "hill": hexc("#1E1330"), "hill2": hexc("#2A1B3C"),
+        "lanes": True, "rails": True, "bpm": 126, "prop_density": 0.30,
+        "props": [{"kind": "palm", "scale": 1.0}, {"kind": "palm", "scale": 0.8},
+                  {"kind": "rock", "scale": 0.8}, {"kind": "sign", "scale": 0.55}],
+        "terrain": {"hill_amp": 1.0, "curve_amp": 1.0, "climb": 0,
+                    "straight_bias": 0.30, "tight": 0.16, "ai_skill": 0.00},
+        # A minor, four on the floor — the driving one.
+        "music": {"roots": [110.00, 87.31, 130.81, 98.00],
+                  "scale": [220.00, 261.63, 293.66, 329.63, 392.00],
+                  "lead": [0, 2, 1, 3, 4, 3, 1, 2, 0, 1, 2, 4, 3, 2, 1, 0],
+                  "drums": "four", "bass": "saw", "leadw": "square",
+                  "pad": "saw", "drive": 0.80},
+    },
+
+    "dunes": {
+        "name": "Salt & Sand",
+        "blurb": "Sand-blown coast road, flat and fast",
+        "track": "Low Tide (Salt Mix)",
+        "light": {"road": hexc("#AD9670"), "grass": hexc("#DDCCA4"), "rumble": hexc("#8C7550"),
+                  "lane": hexc("#F6F0DE"), "trackw": hexc("#9E8663"), "edge": hexc("#F4EEDC"),
+                  "rail": hexc("#8C7A5C")},
+        "dark": {"road": hexc("#A68E68"), "grass": hexc("#D5C39A"), "rumble": hexc("#F4EEDC"),
+                 "lane": None, "trackw": hexc("#977F5C"), "edge": hexc("#F4EEDC"),
+                 "rail": hexc("#827154")},
+        "sky_stops": [(0.0, hexc("#22406E")), (0.32, hexc("#4E7FB0")), (0.58, hexc("#8FBAD6")),
+                      (0.80, hexc("#DCCDA8")), (1.0, hexc("#F0DCB4"))],
+        "horizon": hexc("#F0DCB4"), "sun": hexc("#FFF6DA"), "accent": hexc("#3E8FA8"),
+        "cloud_hi": hexc("#FFFFFF"), "cloud_lo": hexc("#9FB8CE"),
+        "ridge_far": hexc("#AEC1D2"), "ridge_near": hexc("#C6B189"),
+        "hill": hexc("#8E7A56"), "hill2": hexc("#A08B63"),
+        "lanes": False, "rails": False, "bpm": 116, "prop_density": 0.36,
+        "props": [{"kind": "grass", "scale": 0.5}, {"kind": "grass", "scale": 0.4},
+                  {"kind": "driftwood", "scale": 0.6}, {"kind": "rock", "scale": 0.55}],
+        "terrain": {"hill_amp": 0.30, "curve_amp": 0.70, "climb": 0,
+                    "straight_bias": 0.52, "tight": 0.05, "ai_skill": 0.00},
+        # D major, half-time, plenty of air — the one you ride to unwind.
+        "music": {"roots": [73.42, 110.00, 98.00, 110.00],
+                  "scale": [293.66, 329.63, 369.99, 440.00, 493.88],
+                  "lead": [0, 1, 2, 3, 4, 3, 2, 1, 2, 3, 4, 3, 2, 1, 0, 1],
+                  "drums": "soft", "bass": "tri", "leadw": "tri",
+                  "pad": "tri", "drive": 0.34},
+    },
+
+    "ridge": {
+        "name": "Ridge Pass",
+        "blurb": "Sustained climb, hairpins, pine and rock",
+        "track": "Switchback (Ridge Mix)",
+        "light": {"road": hexc("#3D444C"), "grass": hexc("#2E3A33"), "rumble": hexc("#C2C7CB"),
+                  "lane": hexc("#EDEFE8"), "trackw": hexc("#343A42"), "edge": hexc("#EDEFE8"),
+                  "rail": hexc("#7E868E")},
+        "dark": {"road": hexc("#363D45"), "grass": hexc("#28332D"), "rumble": hexc("#EDEFE8"),
+                 "lane": None, "trackw": hexc("#2E343C"), "edge": hexc("#EDEFE8"),
+                 "rail": hexc("#727A82")},
+        "sky_stops": [(0.0, hexc("#0E1A30")), (0.30, hexc("#22405E")), (0.56, hexc("#4E7189")),
+                      (0.80, hexc("#98ADB6")), (1.0, hexc("#CFC1AE"))],
+        "horizon": hexc("#CFC1AE"), "sun": hexc("#FFF6E4"), "accent": hexc("#C8543C"),
+        "cloud_hi": hexc("#EAF0F4"), "cloud_lo": hexc("#385470"),
+        "ridge_far": hexc("#728698"), "ridge_near": hexc("#1F2C3A"),
+        "hill": hexc("#1A2630"), "hill2": hexc("#26343F"),
+        "lanes": True, "rails": True, "bpm": 132, "prop_density": 0.42,
+        "props": [{"kind": "pine", "scale": 1.0}, {"kind": "pine", "scale": 0.75},
+                  {"kind": "boulder", "scale": 0.9}, {"kind": "sign", "scale": 0.55}],
+        "terrain": {"hill_amp": 1.9, "curve_amp": 1.35, "climb": 1,
+                    "straight_bias": 0.18, "tight": 0.34, "ai_skill": 0.20},
+        # E phrygian — the flat second is the whole reason this road sounds
+        # like it is about to go wrong. Busiest kit of the four.
+        "music": {"roots": [82.41, 87.31, 98.00, 82.41],
+                  "scale": [329.63, 349.23, 392.00, 493.88, 587.33],
+                  "lead": [0, 0, 1, 2, 0, 1, 2, 4, 3, 2, 1, 0, 1, 2, 3, 4],
+                  "drums": "drive", "bass": "saw", "leadw": "saw",
+                  "pad": "saw", "drive": 1.00},
+    },
+
+    "canyon": {
+        "name": "Dry Canyon",
+        "blurb": "Red rock, mesas, long full-throttle runs",
+        "track": "Red Mile (Canyon Mix)",
+        "light": {"road": hexc("#4E4038"), "grass": hexc("#6B4530"), "rumble": hexc("#D8B87E"),
+                  "lane": hexc("#E8DCBE"), "trackw": hexc("#443830"), "edge": hexc("#E8DCBE"),
+                  "rail": hexc("#8A6E52")},
+        "dark": {"road": hexc("#463A32"), "grass": hexc("#5F3D2A"), "rumble": hexc("#E8DCBE"),
+                 "lane": None, "trackw": hexc("#3E332C"), "edge": hexc("#E8DCBE"),
+                 "rail": hexc("#7C6248")},
+        "sky_stops": [(0.0, hexc("#2B1526")), (0.30, hexc("#5E2430")), (0.55, hexc("#9C3A2E")),
+                      (0.78, hexc("#D9702F")), (1.0, hexc("#E29A57"))],
+        "horizon": hexc("#E29A57"), "sun": hexc("#FFE3A8"), "accent": hexc("#E0A23C"),
+        "cloud_hi": hexc("#FFC98A"), "cloud_lo": hexc("#63262F"),
+        "ridge_far": hexc("#8A4536"), "ridge_near": hexc("#43202A"),
+        "hill": hexc("#3A1D24"), "hill2": hexc("#4E2A2A"),
+        "lanes": True, "rails": False, "bpm": 128, "prop_density": 0.26,
+        "props": [{"kind": "cactus", "scale": 0.7}, {"kind": "mesa", "scale": 2.6, "far": True},
+                  {"kind": "boulder", "scale": 0.9}, {"kind": "cactus", "scale": 0.5}],
+        "terrain": {"hill_amp": 0.70, "curve_amp": 1.35, "climb": 0,
+                    "straight_bias": 0.42, "tight": 0.22, "ai_skill": 0.08},
+        # A blues with a swung sixteenth — swagger rather than urgency.
+        "music": {"roots": [110.00, 73.42, 110.00, 82.41],
+                  "scale": [220.00, 261.63, 293.66, 311.13, 329.63, 392.00],
+                  "lead": [0, 2, 3, 4, 3, 2, 0, 1, 0, 2, 3, 5, 4, 3, 2, 0],
+                  "drums": "shuffle", "bass": "square", "leadw": "square",
+                  "pad": "saw", "drive": 0.68},
+    },
+}
+
+LOCALE_IDS = ["coast", "dunes", "ridge", "canyon"]
