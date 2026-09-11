@@ -114,6 +114,7 @@
   }
   .standings li.you{background:rgba(255,194,74,.18);color:var(--cream);box-shadow:inset 2px 0 0 var(--sun)}
   .standings li.struck{background:rgba(255,63,107,.24);color:var(--cream)}
+  .standings li.hunting{background:rgba(255,194,74,.22);color:var(--cream)}
   .standings .dot{width:7px;height:7px;border-radius:50%}
   .standings .rn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .standings .gp{font-variant-numeric:tabular-nums;font-size:9px;opacity:.85}
@@ -1069,7 +1070,7 @@ function makeActors(){
         z: (state.pos + PLAYER_Z + lead) % trackLength,
         offset: c.line,
         speed: MAX_SPEED * (0.62 + rng()*0.14),
-        steerV:0, stagger:0, swing:0, tell:0, knock:0, offTime:0, hitCd:0, wobble:0,
+        steerV:0, stagger:0, swing:0, tell:0, knock:0, offTime:0, hitCd:0, wobble:0, fight:0,
         trace:[], topSpeed:0, knockTag:0, ahead:true, passCd:0,
         cd: 2.5 + rng()*3,
         drift: rng()*Math.PI*2
@@ -1962,23 +1963,35 @@ function update(dt){
       const curveSeen = aheadSeg.curve;
 
       // --- pace: their own nerve first, the pack only as a nudge ---
-      /* Inside a wide dead zone the order is decided by how they ride.
-         Outside it the pack is gathered back up — and a rider who has
-         dropped out of sight closes hard, because nobody is watching. */
+      /* Pace, in three layers. Their own nerve sets the baseline — and it
+         has to reach your top speed, or being passed is permanent. Getting
+         passed lights a fire under them. Sitting in your wake gives a tow. */
+      if(a.fight > 0) a.fight -= dt;
+      const nerveNow = Math.min(1.05, a.nerve + (a.fight > 0 ? 0.30 : 0));
       let far = 0;
-      let target = MAX_SPEED * (0.66 + a.nerve*0.27);
-      if(d > 22000)      target = Math.min(target, Math.max(MAX_SPEED*0.42, state.speed*0.84));
-      else if(d > 9000)  target = Math.min(target, Math.max(MAX_SPEED*0.50, state.speed*0.96));
-      else if(d < -6000){
-        far = clamp((-d - 6000)/40000, 0, 1);
-        const ceil = MAX_SPEED * (1.02 + far*0.38);
-        target = Math.max(target, Math.min(ceil, state.speed*(1.10 + far*0.48) + 500));
+      let target = MAX_SPEED * (0.70 + nerveNow*0.30);
+
+      // slipstream: tucked into your dirty air, close and roughly in line
+      const drafting = d < 0 && d > -5200 && Math.abs(a.offset - state.playerX) < 0.60;
+      if(drafting) target *= 1.10;
+
+      if(d > 16000)      target = Math.min(target, Math.max(MAX_SPEED*0.55, state.speed*0.92));
+      else if(d < -9000){
+        far = clamp((-d - 9000)/36000, 0, 1);
+        const ceil = MAX_SPEED * (1.06 + far*0.34);
+        target = Math.max(target, Math.min(ceil, state.speed*(1.12 + far*0.44) + 500));
       }
 
       // the corner they can see sets a speed they ought to respect —
       // how much they actually respect it is their skill
-      let limit = MAX_SPEED * (0.60 + a.skill*0.36) / (1 + Math.abs(curveSeen)*0.13);
+      /* A corner speed limit should only exist where there is a corner. The
+         old base capped riders below your top speed on a dead straight, so
+         once you were past them the pass was permanent. Now skill decides
+         how much a corner costs them, not how fast they can go at all. */
+      let limit = MAX_SPEED * (0.92 + a.skill*0.14)
+                / (1 + Math.abs(curveSeen) * 0.13 * (1.6 - a.skill));
       if(far > 0) limit *= 1.12 + far*0.60;
+      if(a.fight > 0) limit *= 1.10;
       if(target > limit) target = lerp(target, limit, a.skill);
 
       if(a.knock > 0){ a.knock -= dt; target *= 0.55; }
@@ -2022,7 +2035,8 @@ function update(dt){
         } else {
           want = a.line + Math.sin(a.drift)*0.22 + clamp(dodge,-0.9,0.9)*0.55;
           want += (curveSeen >= 0 ? 1 : -1) * Math.min(0.50, Math.abs(curveSeen)*0.075) * a.skill;
-          if(Math.abs(d) < 1700) want += (state.playerX - a.offset) * 0.24 * a.aggro;
+          const aggroNow = a.aggro * (a.fight > 0 ? 1.6 : 1);
+        if(Math.abs(d) < 2100) want += (state.playerX - a.offset) * 0.24 * aggroNow;
           want = clamp(want, -0.92, 0.92);
           react = 1.1 + a.skill*2.6;
           authority = 1.9;
@@ -2058,6 +2072,7 @@ function update(dt){
         const lead = a.dist - state.dist;
         if(a.ahead && lead < -900 && a.passCd <= 0){
           a.ahead = false; a.passCd = 2.5;
+          a.fight = 7.5;                 // they have something to prove now
           state.overtakes++;
           addCombo(1, 'OVERTAKE · ' + a.name, '#FFC24A', PTS.overtake);
         } else if(!a.ahead && lead > 900 && a.passCd <= 0){
@@ -2265,6 +2280,7 @@ function packOrder(){
     if(a.type !== 'rider') continue;
     rows.push({ name:a.name, dist:a.dist, col:a.bike, you:false,
                 trace:a.trace, top:a.topSpeed,
+                hunting: a.fight > 0,
                 struck: a.knock > 0 || a.offTime > 0.15 || a.hitCd > 0.5 });
   }
   rows.sort((x,y) => y.dist - x.dist);
@@ -2282,7 +2298,7 @@ function updateStandings(){
   $('posN').textContent = 'P' + (mine+1) + '/' + rows.length;
 
   const now = performance.now();
-  const key = rows.map(r => r.name + (r.struck?'!':'') + Math.round((r.dist-state.dist)/U_PER_M)).join('|');
+  const key = rows.map(r => r.name + (r.struck?'!':'') + (r.hunting?'>':'') + Math.round((r.dist-state.dist)/U_PER_M)).join('|');
   if(key === standCache || now - standAt < 120) return;
   standCache = key; standAt = now;
 
@@ -2290,7 +2306,7 @@ function updateStandings(){
   list.innerHTML = rows.map((r,i) => {
     const gap = Math.round((r.dist - state.dist)/U_PER_M);
     const gapTxt = r.you ? '—' : (gap>=0 ? '+' : '') + gap + 'm';
-    const cls = r.you ? 'you' : (r.struck ? 'struck' : '');
+    const cls = r.you ? 'you' : (r.struck ? 'struck' : (r.hunting ? 'hunting' : ''));
     return '<li class="' + cls + '">' +
       '<span class="pn">' + (i+1) + '</span>' +
       '<span class="dot" style="background:' + r.col + '"></span>' +
@@ -3039,6 +3055,7 @@ buildLocalePicker();
 startAttract();
 requestAnimationFrame(frame);
 getDB();
+
 
 
 
