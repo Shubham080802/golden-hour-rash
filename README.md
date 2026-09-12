@@ -3,6 +3,9 @@
 A stress-relief motorcycle combat racer. Road Rash's catharsis with Road Rash's
 punishment deleted.
 
+**[golden-hour-rash.vercel.app](https://golden-hour-rash.vercel.app)** &mdash;
+what it is, in one page.
+
 **Download** the app for your machine from
 [Releases](https://github.com/Shubham080802/golden-hour-rash/releases), or run
 it from source:
@@ -349,6 +352,8 @@ Everything is saved to `~/.golden-hour-rash/save.json`.
 | Layout audit | `python tools/audit_layout.py` |
 | Behaviour audit | `python tools/audit_behaviour.py` |
 | Build an app | `pip install pyinstaller` then `python tools/build_app.py` |
+| Build the site | nothing to build — `site/` is static, and Vercel serves it |
+| Build for the browser | `pip install pygbag` then `python tools/build_web.py` (unfinished) |
 
 `tools/build_app.py` produces `dist/GoldenHourRash.app` on macOS (a plain
 executable elsewhere) plus a versioned zip beside it. The build is **ad-hoc
