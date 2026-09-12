@@ -6,6 +6,9 @@ Run it with ``golden-hour-rash``, ``python -m goldenhour``, or
 Controls: arrows or A/D steer, down or S brakes, J or space swings,
 Esc pauses or ends the ride, M mutes the music, R opens the record room.
 """
+import asyncio
+import sys
+
 import pygame
 
 from . import store
@@ -15,6 +18,8 @@ from .game import Game
 from .postfx import PostFX
 from .render import Renderer
 from .ui import Fonts, Ui
+
+WEB = sys.platform == "emscripten"
 
 
 def dispatch(g, action):
@@ -237,9 +242,21 @@ def read_steering(g, pads):
     g.throttle = 0.0 if brake else 1.0
 
 
-def main():
+async def run():
+    """The game, as a coroutine.
+
+    It is a coroutine for one reason: in the browser build the page owns the
+    event loop, and a frame has to hand control back or the tab locks up.
+    On the desktop the await below costs nothing measurable.
+    """
     pygame.init()
-    screen = pygame.display.set_mode((WIN_W, WIN_H), pygame.RESIZABLE)
+    if WEB:
+        # The browser canvas is a fixed size the page decides; asking for a
+        # resizable window of our own leaves the canvas at 1x1 and nothing
+        # ever appears.
+        screen = pygame.display.set_mode((WIN_W, WIN_H))
+    else:
+        screen = pygame.display.set_mode((WIN_W, WIN_H), pygame.RESIZABLE)
     pygame.display.set_caption("Golden Hour Rash")
     clock = pygame.time.Clock()
 
@@ -271,7 +288,7 @@ def main():
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
                 running = False
-            elif ev.type == pygame.VIDEORESIZE:
+            elif ev.type == pygame.VIDEORESIZE and not WEB:
                 # take the size the window manager actually gives back, not
                 # the one we asked for — they differ on macOS
                 pygame.display.set_mode(ev.size, pygame.RESIZABLE)
@@ -378,7 +395,13 @@ def main():
             ui.fx_note(screen, fx, w, h)
 
         pygame.display.flip()
+        await asyncio.sleep(0)          # hand the frame back to the browser
 
     store.save(data)
     pygame.quit()
     return 0
+
+
+def main():
+    """Desktop entry point."""
+    return asyncio.run(run())

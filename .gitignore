@@ -7,3 +7,7 @@ dist/
 # build artefacts
 *.spec
 *.egg-info/
+
+# web build staging
+build/golden-hour-rash/
+build/web-cache/

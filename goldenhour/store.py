@@ -7,11 +7,41 @@ scores are kept locally like the rest.
 """
 import json
 import os
+import sys
 import time
 from pathlib import Path
 
-SAVE_DIR = Path(os.environ.get("GOLDENHOUR_HOME", Path.home() / ".golden-hour-rash"))
+WEB = sys.platform == "emscripten"
+
+
+def _save_dir():
+    """Where records live.
+
+    In the browser the home directory is a scratch filesystem that is thrown
+    away with the tab, so the save goes under /data, which the web runtime
+    backs with IndexedDB and we flush after every write.
+    """
+    override = os.environ.get("GOLDENHOUR_HOME")
+    if override:
+        return Path(override)
+    if WEB:
+        return Path("/data/golden-hour-rash")
+    return Path.home() / ".golden-hour-rash"
+
+
+SAVE_DIR = _save_dir()
 SAVE_FILE = SAVE_DIR / "save.json"
+
+
+def _flush():
+    """Push the browser filesystem out to IndexedDB, if we are in one."""
+    if not WEB:
+        return
+    try:
+        import platform
+        platform.window.FS.syncfs(False, lambda *a: None)
+    except Exception:
+        pass
 
 _DEFAULT = {
     "settings": {"locale": "coast", "music": True},
@@ -56,6 +86,7 @@ def save(data):
         with tmp.open("w", encoding="utf-8") as fh:
             json.dump(data, fh, indent=1)
         tmp.replace(SAVE_FILE)          # atomic, so a crash cannot truncate it
+        _flush()
     except OSError:
         pass
 

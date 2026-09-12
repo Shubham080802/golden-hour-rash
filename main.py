@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""Golden Hour Rash — run the game from a checkout.
+"""Golden Hour Rash.
 
     python main.py
 
-The game itself lives in the goldenhour package; this is here so the repo
-stays runnable without installing anything.
+This is also the entry point the web build is compiled from, which is why it
+runs the coroutine directly rather than calling into a wrapper: pygbag loads
+this file and drives the loop from the browser's own scheduler.
 """
+import asyncio
 import sys
 
-from goldenhour.app import main
+from goldenhour.app import run
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(asyncio.run(run()))
