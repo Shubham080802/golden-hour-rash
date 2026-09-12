@@ -112,17 +112,37 @@ mean anything if the field is softer for some players than others.
 
 ## The pack
 
-Five named riders, colour-matched to their dot on the standings. The colours
-are the Okabe-Ito set, which stays distinguishable under the common forms of
-colour blindness.
+Nine named riders and you — a field of ten, each colour-matched to their dot on
+the standings. The base colours are the Okabe-Ito set, which stays
+distinguishable under the common forms of colour blindness; the four added for
+the larger field were picked to stay separable alongside it.
 
 | | Reads ahead | Pushes | Corners | Wants a fight |
 |---|---|---|---|---|
-| **MARLA** | furthest | hard | cleanest | some |
+| **SABLE** | furthest | hard | cleanest | some |
+| **MARLA** | furthest | hard | very clean | some |
 | **HOYT** | far | little | clean | rarely |
+| **PIKE** | mid | hard | ok | nearly always |
+| **KADE** | mid | hard | ok | always |
+| **JUNO** | mid | some | ok | sometimes |
+| **TORO** | short | hard | ok | often |
 | **VEX** | short | hardest | badly | often |
 | **DIZZY** | shortest | some | badly | some |
-| **KADE** | mid | hard | ok | always |
+
+**SABLE** and **MARLA** are the two you will struggle with: they read the road
+furthest ahead and hold a line you cannot match on pace alone. The five in the
+middle are pitched at your level — you will beat them on a good lap and lose to
+them on a scruffy one. **VEX** and **DIZZY** have the fastest hands and the
+worst heads; they will be alongside you early and in the dirt by the flag.
+
+The grid is ordered by pace, quickest furthest up the road, so the riders get
+harder in the order you reach them.
+
+Everyone fights everyone. A rival in reach of another rival will swing at them
+rather than wait for you, and take the same stagger, speed loss and lost ground
+you do — softened, because the pack roughing each other up is texture, not a
+second way for you to win. Over a race you will see places change ahead of you
+that you had nothing to do with.
 
 They are not on rails. Each only reads the road as far ahead as their own
 look-ahead, fights the same centrifugal force you do, hits the same traffic and

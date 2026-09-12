@@ -9,16 +9,27 @@ from .config import CENTRIFUGAL, KM, MAX_SPEED, PTS, clamp, hexc, lerp
 # forms of colour blindness. The old red/green pair for VEX and DIZZY was the
 # worst possible choice for the two dots you read fastest in the standings.
 RIDER_SPECS = [
-    {"name": "VEX",   "bike": "#D55E00", "suit": "#241B33",
-     "skill": 0.52, "nerve": 0.95, "look": 1100, "aggro": 0.90, "line": -0.30},
+    # --- the two you will struggle with -------------------------------
+    {"name": "SABLE", "bike": "#E6E6E6", "suit": "#2A2A30",
+     "skill": 0.95, "nerve": 0.93, "look": 2700, "aggro": 0.62, "line": 0.06},
     {"name": "MARLA", "bike": "#0072B2", "suit": "#1F2A3D",
      "skill": 0.92, "nerve": 0.88, "look": 2500, "aggro": 0.55, "line": 0.10},
+    # --- clean, quick, but beatable ------------------------------------
     {"name": "HOYT",  "bike": "#F0E442", "suit": "#2E2416",
      "skill": 0.86, "nerve": 0.60, "look": 2300, "aggro": 0.30, "line": 0.34},
-    {"name": "DIZZY", "bike": "#009E73", "suit": "#1B2E28",
-     "skill": 0.46, "nerve": 0.68, "look": 1000, "aggro": 0.45, "line": -0.12},
+    {"name": "PIKE",  "bike": "#56B4E9", "suit": "#1B2C38",
+     "skill": 0.74, "nerve": 0.85, "look": 1900, "aggro": 0.88, "line": -0.22},
     {"name": "KADE",  "bike": "#CC79A7", "suit": "#2A1B36",
      "skill": 0.71, "nerve": 0.82, "look": 1750, "aggro": 1.00, "line": 0.02},
+    {"name": "JUNO",  "bike": "#A0522D", "suit": "#2B1D18",
+     "skill": 0.70, "nerve": 0.78, "look": 1800, "aggro": 0.40, "line": 0.26},
+    {"name": "TORO",  "bike": "#7E5BEF", "suit": "#231C3A",
+     "skill": 0.66, "nerve": 0.90, "look": 1400, "aggro": 0.70, "line": -0.34},
+    # --- fast hands, poor heads ----------------------------------------
+    {"name": "VEX",   "bike": "#D55E00", "suit": "#241B33",
+     "skill": 0.52, "nerve": 0.95, "look": 1100, "aggro": 0.90, "line": -0.30},
+    {"name": "DIZZY", "bike": "#009E73", "suit": "#1B2E28",
+     "skill": 0.46, "nerve": 0.68, "look": 1000, "aggro": 0.45, "line": -0.12},
 ]
 
 CAR_COLOURS = ["#E8E2D4", "#5C6EDB", "#D8534F", "#3FAE8C", "#E0A93F", "#8A7FBE"]
@@ -115,7 +126,9 @@ class Rider:
         self.aggro = clamp(spec["aggro"] + jitter() * 0.10 + lift * 0.6, 0.15, 1.00)
         self.line = spec["line"] + jitter() * 0.10
 
-        lead = 3400 + index * 2400
+        # nine of them now, so the grid is tighter — a 2400-unit gap each
+        # would string the field over half a kilometre.
+        lead = 3000 + index * 1850
         self.dist = float(lead)
         self.z = (player_pos + lead) % track.length
         self.offset = self.line
@@ -140,8 +153,22 @@ class Rider:
         self.prev_offset = self.offset
         self.ahead = True
         self.pass_cd = 0.0
+        self.target = None
         self.trace = []
         self.top_speed = 0.0
+
+    def take_hit(self, from_side, hard=True):
+        """Knocked sideways by someone else's fist. A rival's punch stings
+        less than yours — the pack roughing each other up is texture, not a
+        second way to win the race."""
+        self.stagger = 0.85 if hard else 0.6
+        self.stagger_dir = from_side
+        self.knock = 1.15 if hard else 0.8
+        self.speed *= 0.66 if hard else 0.80
+        self.dist -= 300 if hard else 150
+        self.wobble = 1.0
+        self.tell = 0
+        self.cd = 3.4
 
     def update(self, dt, game):
         track = game.track
@@ -282,25 +309,59 @@ class Rider:
         if self.swing > 0:
             self.swing -= dt * 3.6
 
-        # --- attacks: telegraphed, dodgeable, never fatal ----------------
+        # --- fights: with you, and with each other ------------------------
+        # Rivals used to only ever swing at the player, which made the pack
+        # feel like a wall rather than a race. They now pick whoever is in
+        # reach, and the field spends the whole run elbowing itself.
         if racing:
-            close = abs(d) < 620 and abs(self.offset - game.player_x) < 0.42
+            def in_reach(other_offset, gap):
+                return abs(gap) < 620 and abs(self.offset - other_offset) < 0.42
+
             if self.tell > 0:
                 self.tell += dt * 2.4
                 if self.tell >= 1:
                     self.tell = 0
                     self.cd = 3.2 + game.sim_rnd.random() * 3
-                    if close and game.dazed <= 0:
-                        game.clipped(1 if game.player_x >= self.offset else -1, self.name)
+                    victim = self.target
+                    if victim is None:
+                        if in_reach(game.player_x, d) and game.dazed <= 0:
+                            game.clipped(1 if game.player_x >= self.offset else -1,
+                                         self.name)
+                        else:
+                            self.swing = 1.0
+                            self.swing_side = -1 if self.offset > game.player_x else 1
                     else:
+                        vd = track.rel_z(victim.z - self.z)
                         self.swing = 1.0
-                        self.swing_side = -1 if self.offset > game.player_x else 1
+                        self.swing_side = -1 if self.offset > victim.offset else 1
+                        if in_reach(victim.offset, vd) and victim.stagger <= 0:
+                            victim.take_hit(self.swing_side, hard=False)
+                    self.target = None
             else:
                 self.cd -= dt
-                if (self.cd <= 0 and close and self.stagger <= 0
-                        and self.off_time <= 0 and self.wobble < 0.2):
-                    self.tell = 0.01
-                    self.tell_side = -1 if self.offset > game.player_x else 1
+                ready = (self.cd <= 0 and self.stagger <= 0
+                         and self.off_time <= 0 and self.wobble < 0.2)
+                if ready:
+                    pick, pick_off = None, None
+                    if in_reach(game.player_x, d):
+                        pick, pick_off = None, game.player_x
+                        found = True
+                    else:
+                        found = False
+                        best_gap = 1e9
+                        for other in game.riders:
+                            if other is self:
+                                continue
+                            og = track.rel_z(other.z - self.z)
+                            if in_reach(other.offset, og) and abs(og) < best_gap:
+                                best_gap = abs(og)
+                                pick, pick_off = other, other.offset
+                                found = True
+                    # picking a fight with a peer is down to temperament
+                    if found and (pick is None or game.sim_rnd.random() < self.aggro):
+                        self.target = pick
+                        self.tell = 0.01
+                        self.tell_side = -1 if self.offset > pick_off else 1
 
     @property
     def in_trouble(self):

@@ -80,7 +80,10 @@ class Game:
         if not zen:
             bump = LOCALES[self.locale]["terrain"]["ai_skill"]
             head = self.mod.get("head_start")
-            for i, spec in enumerate(RIDER_SPECS):
+            # Grid by pace: the quickest start furthest up the road, so the
+            # order you reach them in is the order they get harder.
+            grid = sorted(RIDER_SPECS, key=lambda sp: sp["skill"])
+            for i, spec in enumerate(grid):
                 r = Rider(spec, i, rng, self.track, self.pos + PLAYER_Z, bump,
                           difficulty_edge(self.race_difficulty))
                 if head:                       # slot in mid-pack, not at the back
