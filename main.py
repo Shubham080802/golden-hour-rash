@@ -213,7 +213,10 @@ def main():
             if ev.type == pygame.QUIT:
                 running = False
             elif ev.type == pygame.VIDEORESIZE:
-                screen = pygame.display.set_mode(ev.size, pygame.RESIZABLE)
+                # take the size the window manager actually gives back, not
+                # the one we asked for — they differ on macOS
+                pygame.display.set_mode(ev.size, pygame.RESIZABLE)
+                screen = pygame.display.get_surface()
             elif ev.type == pygame.KEYDOWN:
                 keydown(game, ev.key)
             elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
@@ -246,7 +249,12 @@ def main():
                 except (AttributeError, pygame.error):
                     pass
 
+        # re-read the surface every frame: a resize can hand us a new one,
+        # and a window taller than what we last drew would otherwise keep a
+        # stale, unpainted strip along the bottom
+        screen = pygame.display.get_surface() or screen
         w, h = screen.get_size()
+        screen.fill(INK)
         fx = game.postfx
         fx.tick(dt, clock.get_time())
 
