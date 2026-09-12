@@ -47,6 +47,7 @@ The whole product is one inversion: **keep the violence, delete the punishment.*
 | **Run** | One song, one road, one score. Nothing else. |
 | **Zen** | No rivals, no timer, no score. Just the road and a slow pad. |
 | **Daily** | The same seeded road for everyone, split Guided / Blind. |
+| **Story** | Five legs of one night's ride, ending at a sunrise. |
 
 Daily takes its road from the date, so the board stays comparable. Everything
 that moves a racer draws from a stream seeded by the track, so the same seed
@@ -54,6 +55,43 @@ really is the same race — verified by running one twice with identical inputs
 and diffing the finishing distances. **Guided**
 gives a road map and rally-style corner calls; **Blind** gives you nothing.
 They keep separate records, so difficulty is a choice rather than a handicap.
+
+## Story mode — The Long Way to Sunrise
+
+A rider leaves town at last light and rides through the night to be on the
+Ridge Pass overlook when the sun comes up. Five legs, each on one of the four
+roads, each with its own situation, joined by animated beats.
+
+| | Leg | Road | The situation | To go on |
+|---|---|---|---|---|
+| 1 | Last Light Out of Town | Golden Coast, dusk | Traffic, and a town that does not want to let go | Clear 4.2 km before the light goes |
+| 2 | Salt Flats, Midnight | Salt & Sand, night | Empty road, crosswind, nothing to hit but the ground | Take 3 knocks or fewer |
+| 3 | The Red Mile | Dry Canyon, small hours | The full nine-strong pack, and they did not ask | Come out in the top four |
+| 4 | The Climb | Ridge Pass, before dawn | Four of the quickest came with you; hairpins arrive faster than the headlight | Make 4.3 km up the pass |
+| 5 | First Light | Ridge Pass Overlook, dawn | Nobody to beat. Nothing to prove | Arrive |
+
+Nothing in the story layer touches the racing model. A chapter is a table of
+settings — which road, how long, how busy, how many rivals — plus a goal
+checked at the flag, which keeps the story a layer over the game rather than a
+second game. Fail a leg and nothing is lost: ride it again, or go back to the
+journey. Progress is saved per leg, with your best attempt kept.
+
+The goals were set by measuring, not guessing: three bot profiles (sharp,
+ordinary, ragged) ride every leg, and each goal sits where an ordinary ride
+clears it and a ragged one does not. The opening leg is deliberately the
+forgiving one and the last cannot be failed at all.
+
+### The beats
+
+Between the legs, `cinema.py` paints an animated scene on its own clock: a
+six-stop sky that blends from one time of night to the next, a moon that sets,
+stars that fade out, ridgelines drifting past, a road coming at you and a
+headlight thrown down it in slices. The closing beat runs predawn to dawn with
+the sun actually rising over the ridge — it goes through the same
+supersampling and bloom as the road does, which is where the glow comes from.
+Prose types itself out a character at a time; any key fills the rest in.
+Reduced motion (**C**) keeps the sky's slow blend and stills everything that
+moves for its own sake.
 
 ## Roads
 
@@ -229,6 +267,8 @@ goldenhour/
   audio.py              procedural synthesis and the sequencer
   store.py              JSON persistence
   achievements.py       definitions and checking
+  story.py              the five legs, their goals and progress
+  cinema.py             the animated story beats
   game.py               state, physics, world render pass
 tools/smoke.py          headless self-test — renders every screen and races
 web/index.html          the original browser build, kept for reference

@@ -10,9 +10,10 @@ import math
 import pygame
 
 from .achievements import ACHIEVEMENTS, progress
-from .config import (CREAM, EMBER, HOT, INK, LINE, MINT, MUTED, PTS, SONG_LEN,
+from .config import (CREAM, EMBER, HOT, INK, KM, LINE, MINT, MUTED, PTS,
                      camera_by_id, difficulty_name,
                      SUN, U_PER_M, clamp, lerp)
+from . import story
 from .game import daily_locale
 from .locales import LOCALE_IDS, LOCALES
 from . import store
@@ -173,11 +174,15 @@ class Ui:
                           self.px(300), max(3, self.px(5)))
         self.text(s, "NOW PLAYING", self.f.tag, MUTED, bar.centerx, top, "midtop")
         pygame.draw.rect(s, (46, 35, 66), bar, border_radius=3)
-        pct = ((g.t * 3) % 100) / 100 if zen else clamp(g.t / SONG_LEN, 0, 1)
+        pct = ((g.t * 3) % 100) / 100 if zen else clamp(g.t / g.time_limit, 0, 1)
         pygame.draw.rect(s, SUN, pygame.Rect(bar.x, bar.y, int(bar.w * pct), bar.h),
                          border_radius=3)
         name = "Long Way Home (Pad)" if zen else LOCALES[g.locale]["track"]
-        clock = f"{int(g.t // 60)}:{int(g.t % 60):02d}"
+        if g.mode == "story":
+            left = max(0.0, g.time_limit - g.t)
+            name = g.story_ch["title"]
+        clock = (f"-{int(left // 60)}:{int(left % 60):02d}" if g.mode == "story"
+                 else f"{int(g.t // 60)}:{int(g.t % 60):02d}")
         ty = bar.bottom + self.px(4)
         # The clock owns its end of the bar; the track title gets what is left.
         cw = self.f.tiny.size(clock)[0]
@@ -185,9 +190,12 @@ class Ui:
                   self.f.tiny, MUTED, bar.x, ty)
         self.text(s, clock, self.f.tiny, MUTED, bar.right, ty, "topright")
 
+        if g.mode == "story":
+            self._objective(s, g, w, h)
         if not zen:
-            self._mirror(s, g, w, h)
-            self._standings(s, g, w, h)
+            if g.riders:                      # nothing behind you to watch for
+                self._mirror(s, g, w, h)
+                self._standings(s, g, w, h)
             self._combo(s, g, w, h)
             self._clean_pip(s, g, h)
             if g.guide:
@@ -215,6 +223,56 @@ class Ui:
 
         self._pops(s, g, w, h)
         self.toasts(s, g, w)
+
+    def _objective(self, s, g, w, h):
+        """The chapter's goal, and where you stand against it right now."""
+        ch = g.story_ch
+        if not ch:
+            return
+        goal = ch["goal"]
+        kind = goal["kind"]
+        if kind == "distance":
+            pct = clamp(g.dist / goal["value"], 0, 1)
+            state = f"{g.dist / KM:.2f} / {goal['value'] / KM:.1f} km"
+            ok = pct >= 1.0
+        elif kind == "place":
+            rows = g.pack_order()
+            pos = next((i + 1 for i, r in enumerate(rows) if r["you"]), 1)
+            pct = clamp(1.0 - (pos - 1) / max(1, len(rows) - 1), 0, 1)
+            state = f"P{pos} of {len(rows)}  ·  top {goal['value']} to pass"
+            ok = pos <= goal["value"]
+        elif kind == "contacts":
+            pct = clamp(1.0 - g.contacts / max(1, goal["value"] + 1), 0, 1)
+            state = (f"{g.contacts} knock{'' if g.contacts == 1 else 's'}"
+                     f"  ·  {goal['value']} allowed")
+            ok = g.contacts <= goal["value"]
+        else:
+            pct, state, ok = clamp(g.t / g.time_limit, 0, 1), "Ride on", True
+
+        pad = self.px(10)
+        bw = self.px(250)
+        label = self.wrap(goal["label"], self.f.tiny, bw - pad * 2)[:2]
+        box = pygame.Rect(w - bw - self.px(16), self.px(150), bw,
+                          self.f.tag.get_height()
+                          + self.f.tiny.get_height() * (1 + len(label))
+                          + self.px(20))
+        self.panel(s, box, 190)
+        pygame.draw.rect(s, MINT if ok else SUN, pygame.Rect(box.x, box.y,
+                                                             self.px(3), box.h))
+        y = box.y + self.px(6)
+        self.text(s, "THIS LEG", self.f.tag, MINT if ok else SUN, box.x + pad, y)
+        y += self.f.tag.get_height() + self.px(1)
+        for line in label:
+            self.text(s, line, self.f.tiny, CREAM, box.x + pad, y)
+            y += self.f.tiny.get_height()
+        y += self.px(2)
+        self.text(s, state, self.f.tiny, MUTED, box.x + pad, y)
+        rail = pygame.Rect(box.x + pad, box.bottom - self.px(7), bw - pad * 2,
+                           max(2, self.px(3)))
+        pygame.draw.rect(s, (46, 35, 66), rail, border_radius=2)
+        pygame.draw.rect(s, MINT if ok else SUN,
+                         pygame.Rect(rail.x, rail.y, int(rail.w * pct), rail.h),
+                         border_radius=2)
 
     def _mirror(self, s, g, w, h):
         """Who is behind, and on which side.
@@ -443,7 +501,7 @@ class Ui:
     def title(self, s, g, w, h):
         self.scrim(s, w, h)
         cx = w // 2
-        self.text(s, "VERTICAL SLICE · 100 SECONDS", self.f.tag, SUN, cx, int(h * 0.10), "midtop")
+        self.text(s, "GOLDEN HOUR RASH", self.f.tag, SUN, cx, int(h * 0.10), "midtop")
         self.text(s, "PICK A ROAD, THEN PICK YOUR STAKES", self.f.title, CREAM, cx,
                   int(h * 0.13), "midtop")
 
@@ -468,10 +526,13 @@ class Ui:
 
         y_mode = y_road + card_h + self.px(26)
         self.text(s, "MODE", self.f.tag, MUTED, m, y_mode - self.px(16))
+        done = len(story.progress(g.data)["done"])
         modes = [("run", "RUN", "One song, one road, one score.", EMBER),
                  ("zen", "ZEN", "No rivals, no timer, no score.", MINT),
-                 ("daily", "DAILY", "Today's road, shared board.", SUN)]
-        mw = (w - m * 2 - gap * 2) // 3
+                 ("daily", "DAILY", "Today's road, shared board.", SUN),
+                 ("story", "STORY", f"Ride to the sunrise. {done}/"
+                                    f"{len(story.CHAPTERS)} legs.", (200, 139, 240))]
+        mw = (w - m * 2 - gap * 3) // 4
         mode_h = pad * 2 + self.f.h2.get_height() + lh_t * 2
         for i, (mid, name, desc, accent) in enumerate(modes):
             r = pygame.Rect(m + i * (mw + gap), y_mode, mw, mode_h)
@@ -588,6 +649,8 @@ class Ui:
 
     def results(self, s, g, w, h):
         res = g.results
+        if res.get("story"):
+            return self.story_results(s, g, w, h)
         self.scrim(s, w, h)
         cx = w // 2
         y = int(h * 0.06)
@@ -700,6 +763,191 @@ class Ui:
         self.button(s, pygame.Rect(cx + self.px(10), int(h * 0.90), bw, bh),
                     "CHANGE MODE", ("screen", "title"))
         self.toasts(s, g, w)
+
+    def story_results(self, s, g, w, h):
+        res = g.results
+        ch = res["chapter"]
+        passed = res["passed"]
+        self.scrim(s, w, h)
+        cx = w // 2
+        y = int(h * 0.10)
+        self.text(s, ch["place"].upper(), self.f.tag, MUTED, cx, y, "midtop")
+        y += self.f.tag.get_height() + self.px(2)
+        self.text(s, "LEG CLEARED" if passed else "NOT THIS TIME",
+                  self.f.h2, MINT if passed else EMBER, cx, y, "midtop")
+        y += self.f.h2.get_height() + self.px(6)
+        self.text(s, ch["title"], self.f.body, CREAM, cx, y, "midtop")
+        y += self.f.body.get_height() + self.px(16)
+
+        card = pygame.Rect(cx - self.px(230), y, self.px(460),
+                           self.f.tiny.get_height() * 2 + self.f.small.get_height()
+                           + self.px(22))
+        self.panel(s, card, 200)
+        pygame.draw.rect(s, MINT if passed else EMBER, card, 1, border_radius=5)
+        ty = card.y + self.px(8)
+        self.text(s, "THE GOAL", self.f.tag, MUTED, card.x + self.px(12), ty)
+        ty += self.f.tag.get_height() + self.px(1)
+        self.text(s, res["goal"], self.f.small, CREAM, card.x + self.px(12), ty)
+        ty += self.f.small.get_height() + self.px(2)
+        self.text(s, res["detail"], self.f.tiny, MINT if passed else EMBER,
+                  card.x + self.px(12), ty)
+        y = card.bottom + self.px(16)
+
+        stats = [("SCORE", f"{res['score']:,}"),
+                 ("DISTANCE", f"{res['stats']['dist'] / KM:.2f} km"),
+                 ("KNOCKS TAKEN", str(res["contacts"])),
+                 ("BEST COMBO", str(g.best_combo))]
+        if res["rows"]:
+            stats.insert(1, ("FINISHED", f"P{res['pos']}/{res['of']}"))
+        tw = min(w - self.px(120), self.px(620))
+        sw = tw // len(stats)
+        tile_h = self.f.tiny.get_height() + self.f.body.get_height() + self.px(12)
+        for i, (lab, val) in enumerate(stats):
+            r = pygame.Rect(cx - tw // 2 + i * sw, y, sw - self.px(5), tile_h)
+            self.panel(s, r, 150)
+            self.text(s, lab, self.f.tiny, MUTED, r.x + self.px(8), r.y + self.px(5))
+            self.text(s, val, self.f.body, SUN, r.x + self.px(8),
+                      r.y + self.px(5) + self.f.tiny.get_height())
+        y += tile_h + self.px(14)
+
+        if res["perfect"]:
+            self.text(s, f"PERFECT RUN  ·  +{PTS['perfect']:,}", self.f.small, MINT,
+                      cx, y, "midtop")
+            y += self.f.small.get_height() + self.px(4)
+        elif res["tidy"]:
+            self.text(s, f"CLEAN RUN  ·  +{PTS['clean']:,}", self.f.small, MINT,
+                      cx, y, "midtop")
+            y += self.f.small.get_height() + self.px(4)
+
+        if not passed:
+            self.text(s, "Nothing is lost. Turn around and take it again.",
+                      self.f.tiny, MUTED, cx, y, "midtop")
+            y += self.f.tiny.get_height() + self.px(4)
+
+        bw, bh = self.px(180), self.px(34)
+        by = max(y + self.px(16), min(int(h * 0.80), h - bh - self.px(30)))
+        if passed:
+            self.button(s, pygame.Rect(cx - bw - self.px(6), by, bw, bh),
+                        "RIDE ON", ("storyoutro", None))
+            self.button(s, pygame.Rect(cx + self.px(6), by, bw, bh),
+                        "THE JOURNEY", ("screen", "journey"))
+        else:
+            self.button(s, pygame.Rect(cx - bw - self.px(6), by, bw, bh),
+                        "RIDE IT AGAIN", ("storygo", None))
+            self.button(s, pygame.Rect(cx + self.px(6), by, bw, bh),
+                        "THE JOURNEY", ("screen", "journey"))
+        self.toasts(s, g, w)
+
+    def journey(self, s, g, w, h):
+        """The five legs, in order, with the ones behind you marked."""
+        self.scrim(s, w, h)
+        cx = w // 2
+        prog = story.progress(g.data)
+        open_to = story.unlocked(g.data)
+        self.text(s, "STORY", self.f.tag, (200, 139, 240), cx, int(h * 0.05), "midtop")
+        self.text(s, "THE LONG WAY TO SUNRISE", self.f.title, CREAM, cx,
+                  int(h * 0.08), "midtop")
+        self.text(s, "Five legs, one night, one sunrise at the end of it.",
+                  self.f.small, MUTED, cx, int(h * 0.145), "midtop")
+
+        m = self.px(70)
+        row_h = (self.f.body.get_height() + self.f.tiny.get_height() * 2
+                 + self.px(16))
+        y = int(h * 0.20)
+        for i, ch in enumerate(story.CHAPTERS):
+            ridden = ch["id"] in prog["done"]
+            locked = i > open_to
+            r = pygame.Rect(m, y + i * (row_h + self.px(7)), w - m * 2, row_h)
+            self.panel(s, r, 210 if not locked else 110)
+            if not locked:
+                self.hot.append((r, ("story", i)))
+                pygame.draw.rect(s, MINT if ridden else SUN, r, 1, border_radius=5)
+            name_col = MUTED if locked else CREAM
+            self.text(s, f"{i + 1}", self.f.h2, MUTED if locked else (200, 139, 240),
+                      r.x + self.px(14), r.y + self.px(8))
+            tx = r.x + self.px(48)
+            self.text(s, ch["title"], self.f.body, name_col, tx, r.y + self.px(7))
+            self.text(s, ch["place"] + "  ·  " + ch["goal"]["label"], self.f.tiny,
+                      MUTED, tx, r.y + self.px(9) + self.f.body.get_height())
+            best = prog["best"].get(ch["id"])
+            if locked:
+                tag, col = "LOCKED", MUTED
+            elif ridden:
+                tag, col = "RIDDEN", MINT
+            else:
+                tag, col = "NEXT", SUN
+            self.text(s, tag, self.f.tiny, col, r.right - self.px(14), r.y + self.px(9),
+                      "topright")
+            if best:
+                self.text(s, f"best {best['score']:,}", self.f.tiny, MUTED,
+                          r.right - self.px(14),
+                          r.y + self.px(11) + self.f.body.get_height(), "topright")
+            if not locked and not ridden:
+                self.text(s, "PRESS ENTER", self.f.tiny, MUTED,
+                          r.right - self.px(14),
+                          r.y + self.px(11) + self.f.body.get_height(), "topright")
+
+        y = y + len(story.CHAPTERS) * (row_h + self.px(7)) + self.px(14)
+        if story.finished(g.data):
+            self.text(s, "You made it to the overlook. Ride any leg again whenever "
+                         "you like.", self.f.small, MINT, cx, y, "midtop")
+            y += self.f.small.get_height() + self.px(6)
+        self.button(s, pygame.Rect(cx - self.px(50), min(y, h - self.px(44)),
+                                   self.px(100), self.px(30)), "BACK",
+                    ("screen", "title"), font=self.f.tiny)
+        self._mute(s, g, w)
+
+    def beat(self, s, g, w, h):
+        """The words over a story beat.
+
+        The scene itself is painted into the world surface by the caller, so
+        that it goes through the same post-processing the road does.
+        """
+        b = g.beat
+        if not b:
+            return
+
+        # a band behind the text, so the words hold on any sky
+        band_h = int(h * 0.38)
+        band = pygame.Surface((w, band_h), pygame.SRCALPHA)
+        for i in range(band_h):
+            band.fill((6, 3, 14, int(215 * (i / band_h) ** 0.7)),
+                      pygame.Rect(0, i, w, 1))
+        s.blit(band, (0, h - band_h))
+
+        m = self.px(70)
+        y = h - band_h + self.px(24)
+        self.text(s, b["sub"].upper(), self.f.tag, (200, 139, 240), m, y)
+        y += self.f.tag.get_height() + self.px(2)
+        self.text(s, b["head"], self.f.h2, CREAM, m, y)
+        y += self.f.h2.get_height() + self.px(8)
+
+        # typewriter: characters arrive at a readable pace, and any key or
+        # click fills the rest in — nobody should have to wait on prose
+        budget = max(0, int((b["t"] - 0.6) / 0.026))
+        lh = self.f.small.get_height() + self.px(4)
+        for line in b["lines"]:
+            if budget <= 0:
+                break
+            shown = line if budget >= len(line) else line[:budget]
+            budget -= len(line)
+            self.text(s, shown, self.f.small, CREAM, m, y)
+            y += lh
+
+        label = {"ride": "RIDE THIS LEG", "next": "NEXT CHAPTER",
+                 "end": "BACK TO THE ROAD"}[b["next"]]
+        act = {"ride": ("storygo", None), "next": ("storynext", None),
+               "end": ("screen", "journey")}[b["next"]]
+        br = pygame.Rect(0, 0, self.px(190), self.px(34))
+        br.bottomright = (w - self.px(40), h - self.px(24))
+        if g.beat_ready():
+            self.button(s, br, label, act)
+            self.text(s, "SPACE", self.f.tiny, MUTED, br.centerx,
+                      br.y - self.f.tiny.get_height() - self.px(4), "midtop")
+        else:
+            self.text(s, "SPACE TO SKIP", self.f.tiny, MUTED, br.centerx, br.centery,
+                      "center")
+            self.hot.append((pygame.Rect(0, 0, w, h), ("beatskip", None)))
 
     def records(self, s, g, w, h):
         self.scrim(s, w, h)

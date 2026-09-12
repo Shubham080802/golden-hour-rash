@@ -32,6 +32,8 @@ def dispatch(g, action):
             g.screen = "diff"
         elif val == "run":
             g.open_mods()
+        elif val == "story":
+            g.open_journey()
         else:
             g.start_mode(val)
     elif kind == "mod":
@@ -58,7 +60,22 @@ def dispatch(g, action):
         g.postfx.note("Sound off" if g.audio.muted else "Sound on")
         store.save(g.data)
     elif kind == "again":
-        g.start_mode(g.mode, g.diff)
+        if g.mode == "story":
+            g.start_story()
+        else:
+            g.start_mode(g.mode, g.diff)
+    elif kind == "story":
+        g.open_beat("intro", val)
+    elif kind == "storygo":
+        g.start_story()
+    elif kind == "storyoutro":
+        g.open_beat("outro")
+    elif kind == "storynext":
+        g.open_beat("intro", min(g.story_i + 1, len(__import__(
+            "goldenhour.story", fromlist=["CHAPTERS"]).CHAPTERS) - 1))
+    elif kind == "beatskip":
+        if g.beat:
+            g.beat["t"] = g.beat_len()
     elif kind == "resume":
         g.phase = "playing"
         g.screen = "race"
@@ -118,6 +135,30 @@ def keydown(g, key):
         dispatch(g, ("mute", None))
         return
     if g.phase == "title":
+        if g.screen == "beat":
+            if key == pygame.K_ESCAPE:
+                g.open_journey()
+            elif key in (pygame.K_SPACE, pygame.K_RETURN, pygame.K_KP_ENTER):
+                if not g.beat_ready():
+                    g.beat["t"] = g.beat_len()       # first press fills the text
+                elif g.beat["next"] == "ride":
+                    g.start_story()
+                elif g.beat["next"] == "next":
+                    dispatch(g, ("storynext", None))
+                else:
+                    g.open_journey()
+            return
+        if g.screen == "journey":
+            from goldenhour import story as _story
+            if key == pygame.K_ESCAPE:
+                g.screen = "title"
+            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                g.open_beat("intro", min(g.story_i, _story.unlocked(g.data)))
+            elif pygame.K_1 <= key <= pygame.K_9:
+                want = key - pygame.K_1
+                if want <= _story.unlocked(g.data) and want < len(_story.CHAPTERS):
+                    g.open_beat("intro", want)
+            return
         if g.screen == "records":
             if key in (pygame.K_ESCAPE, pygame.K_r):
                 g.screen = "title"
@@ -143,6 +184,8 @@ def keydown(g, key):
         elif key == pygame.K_3:
             g.audio.stop_music()
             g.screen = "diff"
+        elif key == pygame.K_4:
+            g.open_journey()
         return
 
     if key == pygame.K_ESCAPE:
@@ -276,7 +319,15 @@ def main():
         # the interface goes on afterwards at native size so text stays sharp
         scene = fx.scene_for(w, h)
         scene.fill(INK)
-        game.draw_world(scene, *scene.get_size())
+        if game.screen == "beat" and game.beat:
+            # A story beat paints its own world. Sending it through the same
+            # pipeline as the road means it gets the supersampling and the
+            # bloom too, which is most of why the sunrise glows.
+            game.cinema.reduced = game.reduced
+            game.cinema.paint(scene, *scene.get_size(), game.beat["spec"],
+                              game.beat["t"])
+        else:
+            game.draw_world(scene, *scene.get_size())
         fx.bloom(scene)
         if game.phase == "playing" and not game.reduced:
             fx.speed_blur(scene, max(0.0, game.speed / MAX_SPEED - 0.45) / 0.55)
@@ -314,6 +365,10 @@ def main():
             ui.pause(screen, game, w, h)
         elif game.screen == "results":
             ui.results(screen, game, w, h)
+        elif game.screen == "journey":
+            ui.journey(screen, game, w, h)
+        elif game.screen == "beat":
+            ui.beat(screen, game, w, h)
 
         if fx.note_alpha > 0:
             ui.fx_note(screen, fx, w, h)

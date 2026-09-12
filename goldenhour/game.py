@@ -5,13 +5,14 @@ import random
 
 import pygame
 
-from . import achievements, store
+from . import achievements, story, store
 from .config import (ACCEL, BRAKE, CAM_DEPTH, CAM_H, CAMERAS, CENTRIFUGAL, DECEL,
                      DEFAULT_CAMERA, DEFAULT_DIFFICULTY, camera_by_id,
                      DIFFICULTIES, DRAW_DIST, difficulty_edge,
                      FOG_STEPS, MAX_SPEED, OFF_DECEL, OFF_LIMIT, PLAYER_Z, PTS,
                      SEG_LEN, SONG_LEN, U_PER_M, clamp, lerp, mix)
 from .locales import LOCALE_IDS, LOCALES
+from .cinema import Cinema
 from .modifiers import NONE as MOD_NONE, offer as offer_mods
 from .racers import (Car, RIDER_SPECS, Rider, fastest_km, push_trace,
                      time_at_distance)
@@ -39,7 +40,8 @@ class Game:
         self.sim_rnd = random.Random(0)     # anything that moves a racer
 
         self.phase = "title"          # title | playing | paused | ended
-        self.screen = "title"         # title | diff | records | results | pause
+        # title | diff | records | results | pause | journey | beat | mods | race
+        self.screen = "title"
         self.mode = "run"
         self.diff = "hard"
         self.guide = False
@@ -58,6 +60,14 @@ class Game:
         self.mod_choices = []
         self.photo = False
 
+        # story mode: which leg of the journey, and the beat playing over it
+        self.cinema = Cinema()
+        self.story_i = story.unlocked(data)
+        self.story_ch = None
+        self.beat = None
+        self.story_res = None
+        self.time_limit = SONG_LEN
+
         self.picked_locale = data["settings"].get("locale", "coast")
         if self.picked_locale not in LOCALES:
             self.picked_locale = "coast"
@@ -75,14 +85,20 @@ class Game:
         rng = Rng(self.seed ^ 0x9E3779B9)
         zen = self.mode == "zen"
         n_cars = 14 if zen else int(26 * self.mod.get("traffic", 1.0))
+        specs = RIDER_SPECS
+        if self.mode == "story":
+            # A chapter says how busy its road is and how many rivals came
+            # along; an empty road is a legitimate thing for a leg to be.
+            n_cars = max(2, int(n_cars * self.story_ch["traffic"]))
+            specs = sorted(RIDER_SPECS, key=lambda sp: -sp["skill"])[:self.story_ch["riders"]]
         self.cars = [Car(rng, self.track) for _ in range(n_cars)]
         self.riders = []
-        if not zen:
+        if not zen and specs:
             bump = LOCALES[self.locale]["terrain"]["ai_skill"]
             head = self.mod.get("head_start")
             # Grid by pace: the quickest start furthest up the road, so the
             # order you reach them in is the order they get harder.
-            grid = sorted(RIDER_SPECS, key=lambda sp: sp["skill"])
+            grid = sorted(specs, key=lambda sp: sp["skill"])
             for i, spec in enumerate(grid):
                 r = Rider(spec, i, rng, self.track, self.pos + PLAYER_Z, bump,
                           difficulty_edge(self.race_difficulty))
@@ -149,6 +165,9 @@ class Game:
 
     def start_attract(self):
         self.audio.stop_music()
+        self.time_limit = SONG_LEN
+        self.beat = None
+        self.story_res = None
         self.mode = "run"
         self.locale = self.picked_locale
         self.seed = self.rnd.randrange(10 ** 9)
@@ -201,6 +220,8 @@ class Game:
         self.audio.stop_music()
 
     def start_mode(self, mode, diff="hard", mod=None):
+        self.time_limit = SONG_LEN        # story legs set their own
+        self.story_ch = None
         self.mod = mod or MOD_NONE
         if mode != "run":
             self.mod = MOD_NONE
@@ -221,6 +242,85 @@ class Game:
         self.screen = "race"
         self.audio.start_music(LOCALES[self.locale], mode == "zen")
         self.pop("RIDE" if mode == "zen" else "GO", (255, 241, 222))
+
+    # ----------------------------------------------------------- story mode
+    def open_journey(self):
+        self.audio.stop_music()
+        self.story_i = min(self.story_i, story.unlocked(self.data))
+        self.screen = "journey"
+        self.phase = "title"
+
+    def open_beat(self, which, index=None):
+        """Stage an animated beat between the legs of the journey."""
+        if index is not None:
+            self.story_i = index
+        ch = story.chapter(self.story_i)
+        self.story_ch = ch
+        last = self.story_i >= len(story.CHAPTERS) - 1
+        if which == "intro":
+            spec = {"from": ch["sky"], "to": ch["sky"], "scene": "ride",
+                    "blend": 6.0}
+            nxt = "ride"
+            head, sub_ = ch["title"], ch["place"]
+            lines = ch["intro"]
+        else:
+            # The outro walks the sky on to where the next leg opens, so the
+            # night visibly moves while you read.
+            nxt_sky = (story.chapter(self.story_i + 1)["sky"] if not last
+                       else "dawn")
+            spec = {"from": ch["sky"], "to": nxt_sky,
+                    "scene": "overlook" if last else "ride", "blend": 11.0}
+            if last:
+                spec["rise"] = (-0.09, 0.17)       # the sun actually comes up
+            nxt = "end" if last else "next"
+            head = "JOURNEY COMPLETE" if last else ch["title"]
+            sub_ = "Ridge Pass Overlook" if last else ch["place"]
+            lines = ch["outro"]
+        self.beat = {"spec": spec, "lines": list(lines), "head": head,
+                     "sub": sub_, "next": nxt, "t": 0.0, "which": which}
+        self.screen = "beat"
+        self.phase = "title"
+        # A beat gets the road's own key in its calm arrangement — the story
+        # should be scored, and this is the same bed the leg rides out on.
+        self.audio.start_music(LOCALES[ch["locale"]], True)
+
+    def beat_ready(self):
+        """True once the typewriter has caught up with the whole beat."""
+        if not self.beat:
+            return True
+        return self.beat["t"] >= self.beat_len()
+
+    def beat_len(self):
+        n = sum(len(line) for line in self.beat["lines"]) if self.beat else 0
+        return 1.1 + n * 0.026
+
+    def start_story(self, index=None):
+        if index is not None:
+            self.story_i = index
+        ch = story.chapter(self.story_i)
+        self.story_ch = ch
+        self.mod = MOD_NONE
+        self.mode = "story"
+        self.diff = "hard"
+        self.guide = False
+        self.locale = ch["locale"]
+        self.seed = hash_str("STORY-" + ch["id"])
+        self.track = build_track(self.seed, LOCALES[self.locale])
+        self.sim_rnd = random.Random(self.seed)
+        self.time_limit = ch["secs"]
+        self.pos = 0.0
+        self.dist = 0.0
+        self.reset_ride()
+        self.phase = "playing"
+        self.screen = "race"
+        self.audio.start_music(LOCALES[self.locale], ch["calm"])
+        self.pop("RIDE", (255, 241, 222))
+
+    def story_stats(self):
+        rows = self.pack_order() if self.riders else []
+        pos = next((i + 1 for i, r in enumerate(rows) if r["you"]), 1)
+        return {"dist": self.dist, "pos": pos, "of": max(1, len(rows)),
+                "contacts": self.contacts, "score": int(self.score), "t": self.t}
 
     # ------------------------------------------------------------- feedback
     def pop(self, text, col):
@@ -360,6 +460,9 @@ class Game:
             t["life"] -= dt
             if t["life"] <= 0:
                 self.toasts.remove(t)
+
+        if self.screen == "beat" and self.beat:
+            self.beat["t"] += dt
 
         if self.hit_stop > 0:
             self.hit_stop -= dt
@@ -510,7 +613,7 @@ class Game:
 
         if playing:
             self.t += dt
-            if not zen and self.t >= SONG_LEN:
+            if not zen and self.t >= self.time_limit:
                 self.finish()
 
     # --------------------------------------------------------------- finish
@@ -561,6 +664,8 @@ class Game:
         return rows
 
     def build_results(self):
+        if self.mode == "story":
+            return self.build_story_results()
         zen = self.mode == "zen"
         no_bonus = self.mod.get("no_perfect")
         perfect = (not zen) and self.clean and not no_bonus
@@ -598,6 +703,39 @@ class Game:
         store.record_run(self.data, self.mode, self.locale, self.diff, {
             "ts": store.now_ts(), "score": int(self.score), "combo": self.best_combo,
             "hits": self.hits, "pos": mine + 1, "fkm": me["fkm"], "kmh": me["kmh"]})
+        return res
+
+    def build_story_results(self):
+        """A leg is pass or fail against the chapter's own goal. There is no
+        board to climb here, so nothing is written to the records room."""
+        ch = self.story_ch or story.chapter(self.story_i)
+        stats = self.story_stats()
+        if self.clean:
+            self.score += PTS["perfect"]
+        elif self.contacts <= 2:
+            self.score += PTS["clean"]
+        stats["score"] = int(self.score)
+        passed, detail = story.evaluate(ch, stats)
+        rows = self.classify() if self.riders else []
+        res = {"zen": False, "story": True, "chapter": ch, "passed": passed,
+               "detail": detail, "goal": story.goal_text(ch), "stats": stats,
+               "perfect": self.clean, "tidy": (not self.clean) and self.contacts <= 2,
+               "contacts": self.contacts, "score": int(self.score),
+               "rows": rows, "pos": stats["pos"], "of": stats["of"], "pb": None,
+               "last": self.story_i >= len(story.CHAPTERS) - 1}
+        if passed:
+            story.complete(self.data, ch, stats, store)
+            run = {"pos": stats["pos"], "of": stats["of"], "clean": self.clean,
+                   "contacts": self.contacts, "hits": self.hits,
+                   "knockdowns": self.knockdowns, "near": self.near,
+                   "airs": self.airs, "combo": self.best_combo,
+                   "clipped": self.clipped_count, "passed_by": self.passed_by,
+                   "overtakes": self.overtakes, "mode": "story", "diff": "hard",
+                   "locale": self.locale, "mod": "none",
+                   "score": int(self.score), "fkm": None}
+            for ident, name, desc in achievements.check(self.data, run):
+                self.toasts.append({"name": name, "desc": desc, "life": 5.0})
+        self.story_res = res
         return res
 
     # ---------------------------------------------------------------- world

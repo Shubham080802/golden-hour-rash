@@ -24,7 +24,10 @@ print("boot OK | audio:", a.ok)
 def draw(name):
     ui.begin()
     screen.fill(INK)
-    g.draw_world(screen, WIN_W, WIN_H)
+    if name == "beat" and g.beat:
+        g.cinema.paint(screen, WIN_W, WIN_H, g.beat["spec"], g.beat["t"])
+    else:
+        g.draw_world(screen, WIN_W, WIN_H)
     getattr(ui, name)(screen, g, WIN_W, WIN_H)
 
 # --- every screen renders ---
@@ -85,6 +88,36 @@ g.start_mode("daily", "easy")
 for _ in range(120): g.update(1/60)
 ui.begin(); ui.hud(screen, g, WIN_W, WIN_H)
 print("daily guided OK (map + callout drawn)")
+
+# --- story mode: every leg, both beats, and the goals it judges them by ---
+from goldenhour import story
+g.open_journey(); draw("journey"); print("screen journey OK")
+for i, ch in enumerate(story.CHAPTERS):
+    g.open_beat("intro", i)
+    for _ in range(int(60 * 1.5)): g.update(1/60)
+    draw("beat")                                   # mid-typewriter
+    g.beat["t"] = g.beat_len() + 1
+    draw("beat")                                   # settled, with its button
+    g.start_story(i)
+    n = 0
+    while g.phase == "playing" and n < 60*60*3:
+        seg = g.track.find(g.pos + g.PLAYER_Z)
+        g.steer = max(-1, min(1, (-seg.curve*0.09 - g.player_x)*2.6))
+        g.braking = abs(seg.curve) > 4.2 and g.speed > 12000*0.62
+        if n % 34 == 0: g.try_swing()
+        if n % 300 == 0: ui.begin(); ui.hud(screen, g, WIN_W, WIN_H)
+        g.update(1/60); n += 1
+    res = g.results
+    draw("results")
+    g.open_beat("outro", i)
+    for _ in range(30): g.update(1/60)
+    draw("beat")
+    print(f"  leg {i+1} {ch['id']:11s} {'PASS' if res['passed'] else 'FAIL'}"
+          f"  {res['detail']:<28} score={res['score']:>7,}"
+          f"  riders={len(g.riders)} cars={len(g.cars)}")
+st = store.load().get("story", {})
+print("story progress:", st.get("done"))
+assert len(st.get("done", [])) == len(story.CHAPTERS), "a leg failed to record"
 
 # --- persistence ---
 d2 = store.load()
