@@ -21,11 +21,25 @@ _DEFAULT = {
 }
 
 
+LOAD_WARNING = None
+
+
 def load():
+    """A save that will not parse is set aside rather than discarded — losing
+    every record silently is the worst thing this module could do."""
+    global LOAD_WARNING
     try:
         with SAVE_FILE.open(encoding="utf-8") as fh:
             data = json.load(fh)
+    except FileNotFoundError:
+        return json.loads(json.dumps(_DEFAULT))
     except (OSError, ValueError):
+        try:
+            kept = SAVE_FILE.with_name(f"save.corrupt-{int(time.time())}.json")
+            SAVE_FILE.replace(kept)
+            LOAD_WARNING = f"Save unreadable — kept a copy as {kept.name}"
+        except OSError:
+            LOAD_WARNING = "Save unreadable and could not be backed up"
         return json.loads(json.dumps(_DEFAULT))
     for k, v in _DEFAULT.items():
         data.setdefault(k, json.loads(json.dumps(v)))

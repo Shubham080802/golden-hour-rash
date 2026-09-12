@@ -39,6 +39,7 @@ PTS = {
     "air": 60,
     "overtake": 180,
     "corner": 90,
+    "clean": 800,
     "perfect": 2500,
 }
 

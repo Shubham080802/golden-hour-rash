@@ -14,8 +14,7 @@ import random
 
 import pygame
 
-from .config import (CAM_DEPTH, CAM_H, DRAW_DIST, FOG_STEPS, LANES, MAX_SPEED,
-                     PLAYER_Z, ROAD_W, SEG_LEN, clamp, lerp, mix, shade)
+from .config import CAM_DEPTH, FOG_STEPS, LANES, ROAD_W, clamp, mix, shade
 from .locales import LOCALES
 
 
@@ -41,6 +40,7 @@ class Renderer:
         self._air = None
         self._flash = None
         self._stars_cache = None
+        self._stars_surf = None
         self._star_t = 0
         self._fog = {}
         self.bg_x = 0.0
@@ -87,25 +87,6 @@ class Renderer:
         self._sky = pygame.transform.scale(strip, (w, h))
         self._sky_key = key
         return self._sky
-
-    def bloom(self, colour, radius, peak=34):
-        """Additive glow. Concentric circles accumulate, so the per-ring alpha
-        has to stay low or the whole sky saturates to white."""
-        key = (colour, radius, peak)
-        surf = self._bloom.get(key)
-        if surf:
-            return surf
-        d = radius * 2
-        surf = pygame.Surface((d, d), pygame.SRCALPHA)
-        steps = 18
-        for i in range(steps, 0, -1):
-            t = i / steps
-            r = int(radius * t)
-            a = int(peak * (1 - t) ** 2.6)
-            if r > 0 and a > 0:
-                pygame.draw.circle(surf, (*colour, a), (radius, radius), r)
-        self._bloom[key] = surf
-        return surf
 
     def flash_layer(self, w, h):
         if self._flash is None or self._flash.get_size() != (w, h):
@@ -205,13 +186,23 @@ class Renderer:
             self._stars_cache = ((w, h), pts)
         self._star_t += 1
         top = max(0.0, 1.0 - darkness / 190.0)
+        # the scene has no alpha channel, so faint stars need a layer of their
+        # own — drawn straight onto it, every one came out fully opaque
+        layer = self._star_layer(w, h)
+        layer.fill((0, 0, 0, 0))
         for i, (fx, fy, mag) in enumerate(self._stars_cache[1]):
             y = fy * horizon * 0.62
             a = int(30 + 120 * mag * top * (0.75 + 0.25 * math.sin(self._star_t * 0.05 + i)))
             if a < 8:
                 continue
             r = 1 if mag < 0.8 else 2
-            pygame.draw.circle(surf, (255, 250, 236, a), (int(fx * w), int(y)), r)
+            pygame.draw.circle(layer, (255, 250, 236, a), (int(fx * w), int(y)), r)
+        surf.blit(layer, (0, 0))
+
+    def _star_layer(self, w, h):
+        if self._stars_surf is None or self._stars_surf.get_size() != (w, h):
+            self._stars_surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        return self._stars_surf
 
     def _sample_sky(self, loc, u):
         stops = loc["sky_stops"]

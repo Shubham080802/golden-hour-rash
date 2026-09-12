@@ -28,6 +28,7 @@ class PostFX:
         self.auto = True
         self._scene = None
         self._size = None
+        self._resolved = None
         self._frame_ms = 16.0
         self._slow_for = 0.0
         self.last_note = ""
@@ -39,7 +40,12 @@ class PostFX:
         ss = _SS[self.quality]
         size = (max(1, int(w * ss)), max(1, int(h * ss)))
         if self._size != size:
-            self._scene = pygame.Surface(size).convert()
+            # 24-bit on purpose. A display-format surface carries an alpha
+            # channel that these draws leave at zero; resolve then copies that
+            # into the window and every later alpha blit blends against
+            # nothing. That is what once turned the whole screen into a
+            # single flat colour.
+            self._scene = pygame.Surface(size).convert(24)
             self._size = size
         return self._scene
 
@@ -128,9 +134,20 @@ class PostFX:
             v = int(255 * self.brightness)
             screen.fill((v, v, v), special_flags=pygame.BLEND_RGB_MULT)
 
-    def resolve(self, scene, screen):
-        """Down-sample the supersampled scene into the window."""
-        if scene.get_size() == screen.get_size():
-            screen.blit(scene, (0, 0))
-        else:
-            pygame.transform.smoothscale(scene, screen.get_size(), screen)
+    def resolve(self, scene, screen, offset=(0, 0)):
+        """Down-sample the supersampled scene into the window.
+
+        offset is the impact shake. Shifting at this point costs one blit
+        and keeps the kick out of the projection maths entirely.
+        """
+        ox, oy = offset
+        size = screen.get_size()
+        if ox or oy:
+            screen.fill((8, 4, 16))
+        if scene.get_size() == size:
+            screen.blit(scene, (ox, oy))
+            return
+        if self._resolved is None or self._resolved.get_size() != size:
+            self._resolved = pygame.Surface(size).convert(24)
+        pygame.transform.smoothscale(scene, size, self._resolved)
+        screen.blit(self._resolved, (ox, oy))

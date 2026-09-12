@@ -1,4 +1,4 @@
-import os, sys, time, traceback
+import os, sys, time
 os.environ["SDL_VIDEODRIVER"] = "dummy"
 os.environ["SDL_AUDIODRIVER"] = "dummy"
 os.environ["GOLDENHOUR_HOME"] = "/tmp/ghr-test-save"
@@ -19,7 +19,6 @@ ui = Ui(fonts)
 r, a = Renderer(fonts), Audio()
 data = store.load()
 g = Game(r, a, data)
-g.locale_data = lambda: __import__("goldenhour.locales", fromlist=["LOCALES"]).LOCALES[g.locale]
 print("boot OK | audio:", a.ok)
 
 def draw(name):

@@ -14,7 +14,6 @@ from goldenhour import store
 from goldenhour.audio import Audio
 from goldenhour.config import FPS, INK, MAX_SPEED, WIN_H, WIN_W
 from goldenhour.game import Game
-from goldenhour.locales import LOCALE_IDS
 from goldenhour.postfx import PostFX
 from goldenhour.render import Renderer
 from goldenhour.ui import Fonts, Ui
@@ -202,10 +201,10 @@ def main():
     data = store.load()
     game = Game(renderer, audio, data)
     game.postfx = PostFX(data["settings"].get("quality", "high"))
+    if store.LOAD_WARNING:
+        game.postfx.note(store.LOAD_WARNING)
     game.reduced = data["settings"].get("reduced_motion", False)
     game.postfx.brightness = data["settings"].get("brightness", 1.0)
-    game.locale_data = lambda: __import__(
-        "goldenhour.locales", fromlist=["LOCALES"]).LOCALES[game.locale]
 
     running = True
     while running:
@@ -270,7 +269,7 @@ def main():
             fl.fill((*game.flash_col, int(70 * game.flash)))
             scene.blit(fl, (0, 0))
 
-        fx.resolve(scene, screen)
+        fx.resolve(scene, screen, game.shake_offset(w, h))
         fx.apply_brightness(screen)
 
         if game.photo:

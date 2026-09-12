@@ -6,7 +6,7 @@ can never disagree about where the road goes.
 """
 import math
 
-from .config import SEG_LEN, RUMBLE, clamp
+from .config import SEG_LEN, RUMBLE
 
 
 class Rng:

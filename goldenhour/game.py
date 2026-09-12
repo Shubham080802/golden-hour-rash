@@ -33,7 +33,8 @@ class Game:
         self.renderer = renderer
         self.audio = audio
         self.data = data
-        self.rnd = random.Random()
+        self.rnd = random.Random()          # menus, particles, pops
+        self.sim_rnd = random.Random(0)     # anything that moves a racer
 
         self.phase = "title"          # title | playing | paused | ended
         self.screen = "title"         # title | diff | records | results | pause
@@ -128,6 +129,8 @@ class Game:
         self.corner_clean = True
         self.corner_speed = 0.0
         self.was_off = False
+        self.off_for = 0.0
+        self.off_for = 0.0
         self.clipped_count = 0
         self.passed_by = 0
         self.make_actors()
@@ -156,6 +159,9 @@ class Game:
         self.track = build_track(self.seed, LOCALES[self.locale])
         self.reset_ride()
 
+    def locale_data(self):
+        return LOCALES[self.locale]
+
     def open_mods(self):
         """Offer the cards. Daily is excluded — its board must stay fair."""
         self.mod_choices = offer_mods(self.rnd)
@@ -173,6 +179,9 @@ class Game:
         self.seed = (hash_str("GHR-" + today_key()) if mode == "daily"
                      else self.rnd.randrange(10 ** 9))
         self.track = build_track(self.seed, LOCALES[self.locale])
+        # Everything that moves a racer draws from a stream seeded by the
+        # track, so the same seed really is the same race for everyone.
+        self.sim_rnd = random.Random(self.seed)
         self.pos = 0.0
         self.dist = 0.0
         self.reset_ride()
@@ -365,10 +374,14 @@ class Game:
 
         off = abs(self.player_x) > 0.97
         if off and self.speed > OFF_LIMIT * 0.5:
-            if not self.was_off:
+            # a wheel brushing the shoulder through an apex is not a crash;
+            # only a genuine excursion ends a clean run
+            self.off_for += dt
+            if self.off_for > 0.20 and not self.was_off:
                 self.was_off = True
                 self.break_clean()
         elif not off:
+            self.off_for = 0.0
             self.was_off = False
         if off and self.speed > OFF_LIMIT:
             self.speed += OFF_DECEL * dt
@@ -449,6 +462,8 @@ class Game:
 
             if self.speed > self.top_speed:
                 self.top_speed = self.speed
+            self.weather.update(dt, self.speed / MAX_SPEED,
+                                LOCALES[self.locale]["weather"])
             self.sample_t += dt
             if self.sample_t >= 0.15:
                 self.sample_t = 0.0
@@ -510,10 +525,15 @@ class Game:
 
     def build_results(self):
         zen = self.mode == "zen"
-        perfect = (not zen) and self.clean and not self.mod.get("no_perfect")
+        no_bonus = self.mod.get("no_perfect")
+        perfect = (not zen) and self.clean and not no_bonus
+        tidy = (not zen) and (not perfect) and self.contacts <= 2 and not no_bonus
         if perfect:
             self.score += PTS["perfect"]
-        res = {"zen": zen, "perfect": perfect, "score": int(self.score),
+        elif tidy:
+            self.score += PTS["clean"]
+        res = {"zen": zen, "perfect": perfect, "tidy": tidy,
+               "contacts": self.contacts, "score": int(self.score),
                "rows": [], "pos": 0, "of": 0, "pb": None}
         if zen:
             res["dist_km"] = self.dist / (1000 * U_PER_M)
@@ -632,13 +652,21 @@ class Game:
 
         spec = loc["weather"]
         pct = self.speed / MAX_SPEED
-        self.weather.update(1 / 60.0, pct, spec)
         air = r.air_layer(w, h)
         air.fill((0, 0, 0, 0))
         self.weather.draw(air, w, h, horizon, pct, spec)
         surf.blit(air, (0, 0))
 
         self.draw_player(surf, w, h)
+
+    def shake_offset(self, w, h):
+        """Camera kick for impacts. Driven by the frame counter rather than a
+        random draw, so it cannot perturb the simulation's number stream."""
+        if self.reduced or self.shake <= 0.01:
+            return (0, 0)
+        amp = self.shake * min(w, h) * 0.022
+        return (int(math.sin(self.frame * 37.1) * amp),
+                int(math.cos(self.frame * 23.7) * amp * 0.7))
 
     def draw_player(self, surf, w, h):
         bounce = (0.0 if self.reduced

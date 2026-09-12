@@ -10,7 +10,7 @@ import math
 import pygame
 
 from .achievements import ACHIEVEMENTS, progress
-from .config import (CREAM, EMBER, HOT, INK, LINE, MAX_SPEED, MINT, MUTED, SONG_LEN,
+from .config import (CREAM, EMBER, HOT, INK, LINE, MINT, MUTED, PTS, SONG_LEN,
                      SUN, U_PER_M, clamp, lerp)
 from .game import daily_locale
 from .locales import LOCALE_IDS, LOCALES
@@ -446,13 +446,20 @@ class Ui:
         else:
             if res["perfect"]:
                 self.text(s, "PERFECT RUN", self.f.h2, MINT, cx, y, "midtop")
-                self.text(s, "No contact, no dirt, start to flag", self.f.tiny, MUTED,
-                          cx, y + 26, "midtop")
+                self.text(s, f"No contact, no dirt, start to flag  ·  +{PTS['perfect']:,}",
+                          self.f.tiny, MUTED, cx, y + 26, "midtop")
                 y += 34
-            elif g.contacts <= 3:
+            elif res.get("tidy"):
+                self.text(s, "CLEAN RUN", self.f.h2, MINT, cx, y, "midtop")
+                self.text(s, f"{g.contacts} contact"
+                             f"{'' if g.contacts == 1 else 's'}  ·  +{PTS['clean']:,}"
+                             f"  ·  a perfect run is zero",
+                          self.f.tiny, MUTED, cx, y + 26, "midtop")
+                y += 34
+            elif g.contacts <= 5:
                 self.text(s, "SO CLOSE", self.f.h2, EMBER, cx, y, "midtop")
-                self.text(s, f"Perfect run missed by {g.contacts} contact"
-                             f"{'' if g.contacts == 1 else 's'}",
+                self.text(s, f"Clean run missed by {g.contacts - 2} contact"
+                             f"{'' if g.contacts - 2 == 1 else 's'}",
                           self.f.tiny, MUTED, cx, y + 26, "midtop")
                 y += 34
             else:

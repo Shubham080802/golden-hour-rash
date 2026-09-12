@@ -1,20 +1,23 @@
 """Traffic, rivals, and the timing traces the classification is built from."""
 import math
 
-from .config import (CENTRIFUGAL, KM, MAX_SPEED, PTS, SEG_LEN, clamp, hexc, lerp)
+from .config import CENTRIFUGAL, KM, MAX_SPEED, PTS, clamp, hexc, lerp
 
 # Each rider is a different person: how far ahead they read the road, how hard
 # they push, how cleanly they corner, how much they want a fight.
+# Colours are the Okabe-Ito set, which stays distinguishable under the common
+# forms of colour blindness. The old red/green pair for VEX and DIZZY was the
+# worst possible choice for the two dots you read fastest in the standings.
 RIDER_SPECS = [
-    {"name": "VEX",   "bike": "#E2453F", "suit": "#241B33",
+    {"name": "VEX",   "bike": "#D55E00", "suit": "#241B33",
      "skill": 0.52, "nerve": 0.95, "look": 1100, "aggro": 0.90, "line": -0.30},
-    {"name": "MARLA", "bike": "#3D7FE0", "suit": "#1F2A3D",
+    {"name": "MARLA", "bike": "#0072B2", "suit": "#1F2A3D",
      "skill": 0.92, "nerve": 0.88, "look": 2500, "aggro": 0.55, "line": 0.10},
-    {"name": "HOYT",  "bike": "#E0B23A", "suit": "#2E2416",
+    {"name": "HOYT",  "bike": "#F0E442", "suit": "#2E2416",
      "skill": 0.86, "nerve": 0.60, "look": 2300, "aggro": 0.30, "line": 0.34},
-    {"name": "DIZZY", "bike": "#42C48C", "suit": "#1B2E28",
+    {"name": "DIZZY", "bike": "#009E73", "suit": "#1B2E28",
      "skill": 0.46, "nerve": 0.68, "look": 1000, "aggro": 0.45, "line": -0.12},
-    {"name": "KADE",  "bike": "#B357D8", "suit": "#2A1B36",
+    {"name": "KADE",  "bike": "#CC79A7", "suit": "#2A1B36",
      "skill": 0.71, "nerve": 0.82, "look": 1750, "aggro": 1.00, "line": 0.02},
 ]
 
@@ -284,7 +287,7 @@ class Rider:
                 self.tell += dt * 2.4
                 if self.tell >= 1:
                     self.tell = 0
-                    self.cd = 3.2 + game.rnd.random() * 3
+                    self.cd = 3.2 + game.sim_rnd.random() * 3
                     if close and game.dazed <= 0:
                         game.clipped(1 if game.player_x >= self.offset else -1, self.name)
                     else:
