@@ -696,18 +696,20 @@ class Ui:
                           self.f.tiny, MUTED, cx, y + 26, "midtop")
                 y += 34
             elif res.get("tidy"):
+                allow = res.get("allow", 2)
                 self.text(s, "CLEAN RUN", self.f.h2, MINT, cx, y, "midtop")
                 self.text(s, f"{g.contacts} contact"
-                             f"{'' if g.contacts == 1 else 's'}  ·  +{PTS['clean']:,}"
-                             f"  ·  a perfect run is zero",
-                          self.f.tiny, MUTED, cx, y + 26, "midtop")
-                y += 34
-            elif g.contacts <= 5:
+                             f"{'' if g.contacts == 1 else 's'} of {allow} allowed"
+                             f"  ·  +{PTS['clean']:,}  ·  a perfect run is zero",
+                          self.f.tiny, MUTED, cx, y + self.f.h2.get_height(), "midtop")
+                y += self.f.h2.get_height()
+            elif g.contacts <= res.get("allow", 2) * 2:
+                over = g.contacts - res.get("allow", 2)
                 self.text(s, "SO CLOSE", self.f.h2, EMBER, cx, y, "midtop")
-                self.text(s, f"Clean run missed by {g.contacts - 2} contact"
-                             f"{'' if g.contacts - 2 == 1 else 's'}",
-                          self.f.tiny, MUTED, cx, y + 26, "midtop")
-                y += 34
+                self.text(s, f"Clean run missed by {over} contact"
+                             f"{'' if over == 1 else 's'}",
+                          self.f.tiny, MUTED, cx, y + self.f.h2.get_height(), "midtop")
+                y += self.f.h2.get_height()
             else:
                 self.text(s, "TRACK FINISHED", self.f.tag, SUN, cx, y, "midtop")
                 y += 8

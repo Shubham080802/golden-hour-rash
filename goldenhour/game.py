@@ -10,7 +10,7 @@ from .config import (ACCEL, BRAKE, CAM_DEPTH, CAM_H, CAMERAS, CENTRIFUGAL, DECEL
                      DEFAULT_CAMERA, DEFAULT_DIFFICULTY, camera_by_id,
                      DIFFICULTIES, DRAW_DIST, difficulty_edge,
                      FOG_STEPS, MAX_SPEED, OFF_DECEL, OFF_LIMIT, PLAYER_Z, PTS,
-                     SEG_LEN, SONG_LEN, U_PER_M, clamp, lerp, mix)
+                     KM, SEG_LEN, SONG_LEN, U_PER_M, clamp, lerp, mix)
 from .locales import LOCALE_IDS, LOCALES
 from .cinema import Cinema
 from .modifiers import NONE as MOD_NONE, offer as offer_mods
@@ -84,7 +84,10 @@ class Game:
     def make_actors(self):
         rng = Rng(self.seed ^ 0x9E3779B9)
         zen = self.mode == "zen"
-        n_cars = 14 if zen else int(26 * self.mod.get("traffic", 1.0))
+        # The road is 5 km round and the camera reaches 400 m of it, so 26
+        # cars put two in view and the highway read as abandoned. 90 puts six
+        # or seven ahead of you, peaking around a dozen.
+        n_cars = 34 if zen else int(90 * self.mod.get("traffic", 1.0))
         specs = RIDER_SPECS
         if self.mode == "story":
             # A chapter says how busy its road is and how many rivals came
@@ -663,18 +666,27 @@ class Game:
             r["purple"] = (best_km is r)
         return rows
 
+    def clean_allowance(self):
+        """How many knocks a run may take and still count as clean."""
+        return max(2, round(self.dist / KM * 0.8))
+
     def build_results(self):
         if self.mode == "story":
             return self.build_story_results()
         zen = self.mode == "zen"
         no_bonus = self.mod.get("no_perfect")
         perfect = (not zen) and self.clean and not no_bonus
-        tidy = (not zen) and (not perfect) and self.contacts <= 2 and not no_bonus
+        # The clean-run allowance is a rate, not a count. Two contacts was a
+        # fair bar over 100 seconds of a quiet road; over three minutes of a
+        # busy one it was unreachable, and a bonus nobody can earn is not a
+        # bonus. Roughly four fifths of a knock per kilometre ridden.
+        allow = self.clean_allowance()
+        tidy = (not zen) and (not perfect) and self.contacts <= allow and not no_bonus
         if perfect:
             self.score += PTS["perfect"]
         elif tidy:
             self.score += PTS["clean"]
-        res = {"zen": zen, "perfect": perfect, "tidy": tidy,
+        res = {"zen": zen, "perfect": perfect, "tidy": tidy, "allow": allow,
                "contacts": self.contacts, "score": int(self.score),
                "rows": [], "pos": 0, "of": 0, "pb": None}
         if zen:
@@ -719,7 +731,9 @@ class Game:
         rows = self.classify() if self.riders else []
         res = {"zen": False, "story": True, "chapter": ch, "passed": passed,
                "detail": detail, "goal": story.goal_text(ch), "stats": stats,
-               "perfect": self.clean, "tidy": (not self.clean) and self.contacts <= 2,
+               "perfect": self.clean,
+               "tidy": (not self.clean) and self.contacts <= self.clean_allowance(),
+               "allow": self.clean_allowance(),
                "contacts": self.contacts, "score": int(self.score),
                "rows": rows, "pos": stats["pos"], "of": stats["of"], "pb": None,
                "last": self.story_i >= len(story.CHAPTERS) - 1}

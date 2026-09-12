@@ -8,6 +8,12 @@ from .config import CENTRIFUGAL, KM, MAX_SPEED, PTS, clamp, hexc, lerp
 # Colours are the Okabe-Ito set, which stays distinguishable under the common
 # forms of colour blindness. The old red/green pair for VEX and DIZZY was the
 # worst possible choice for the two dots you read fastest in the standings.
+# How much of the difficulty edge goes into the leash. Chosen by sweeping
+# 0/4/8/12 over paired seeds and reading mean finishing position, which is a
+# far steadier measure than win rate at these sample sizes: 8 restores the
+# ladder the 100-second race had (P2.1 / P2.9 / P3.8).
+LEASH_GAIN = 8.0
+
 RIDER_SPECS = [
     # --- the two you will struggle with -------------------------------
     {"name": "SABLE", "bike": "#E6E6E6", "suit": "#2A2A30",
@@ -128,6 +134,13 @@ class Rider:
 
         # nine of them now, so the grid is tighter — a 2400-unit gap each
         # would string the field over half a kilometre.
+        # How far up the road this rider is allowed to get before easing off
+        # and letting the race come back together. A harder field is allowed
+        # a longer leash, which is most of what the difficulty setting means
+        # over a three-minute race — the grid start washes out long before
+        # the flag, so the leash is what you are actually racing against.
+        self.leash = 16000 * (1.0 + (edge - 1.0) * LEASH_GAIN)
+
         lead = 3000 + index * 1850
         self.dist = float(lead)
         self.z = (player_pos + lead) % track.length
@@ -193,10 +206,17 @@ class Rider:
         if drafting:
             target *= 1.10
 
-        if d > 16000:
+        # Pace is judged on the race gap, not on where the rider happens to
+        # sit on the loop. rel_z wraps at half a lap, so a rider who fell
+        # 2.6 km behind used to read as 2.4 km AHEAD — and the branch below
+        # would tell them to ease off and wait for the player. Nobody fell
+        # that far behind in a 100-second race; over three minutes they do,
+        # and the whole field quietly gave up.
+        gap = self.dist - game.dist
+        if gap > self.leash:
             target = min(target, max(MAX_SPEED * 0.55, game.speed * 0.96))
-        elif d < -7000:
-            far = clamp((-d - 7000) / 30000, 0, 1)
+        elif gap < -7000:
+            far = clamp((-gap - 7000) / 30000, 0, 1)
             ceil = MAX_SPEED * (1.06 + far * 0.34)
             target = max(target, min(ceil, game.speed * (1.12 + far * 0.44) + 500))
 

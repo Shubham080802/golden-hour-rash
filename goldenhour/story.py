@@ -33,10 +33,11 @@ CHAPTERS = [
         "traffic": 1.0,
         "riders": 0,
         "calm": False,
-        # 4.2 km in 92 s: a rider who keeps it moving gets there with room,
-        # one who spends the leg in the scenery does not.
-        "goal": {"kind": "distance", "value": 4.2 * KM,
-                 "label": "Clear 4.2 km before the light goes"},
+        # The opener is the forgiving one: even a scrappy ride clears it.
+        # Re-measured after the road got busy — the same ride now covers
+        # less ground, so the bar came down with it.
+        "goal": {"kind": "distance", "value": 4.1 * KM,
+                 "label": "Clear 4.1 km before the light goes"},
         "intro": [
             "You have been telling yourself this for a year.",
             "Tonight the bike is loaded and the tank is full,",
@@ -55,7 +56,9 @@ CHAPTERS = [
         "locale": "dunes",
         "sky": NIGHT,
         "secs": 86.0,
-        "traffic": 0.45,
+        # Nearly deserted on purpose: this leg is about holding a line in a
+        # crosswind, so the knock count has to mean the ground, not traffic.
+        "traffic": 0.15,
         "riders": 0,
         "calm": True,
         "goal": {"kind": "contacts", "value": 3,
@@ -77,11 +80,14 @@ CHAPTERS = [
         "locale": "canyon",
         "sky": LATE,
         "secs": 100.0,
-        "traffic": 1.0,
+        "traffic": 0.5,
         "riders": 9,
         "calm": False,
-        "goal": {"kind": "place", "value": 4,
-                 "label": "Come out of the canyon in the top four"},
+        # The one leg that is a straight race. The bar is the top half of a
+        # ten-bike field: the measuring bots land on P4 and P6 either side of
+        # it, which is where a leg you are meant to retry belongs.
+        "goal": {"kind": "place", "value": 5,
+                 "label": "Come out of the canyon in the top half"},
         "intro": [
             "They were waiting at the fuel stop and they did not ask.",
             "Nine bikes, one canyon, and a hundred miles of red rock",
@@ -100,7 +106,7 @@ CHAPTERS = [
         "locale": "ridge",
         "sky": PREDAWN,
         "secs": 98.0,
-        "traffic": 0.8,
+        "traffic": 0.45,
         "riders": 4,
         "calm": False,
         "goal": {"kind": "distance", "value": 4.3 * KM,

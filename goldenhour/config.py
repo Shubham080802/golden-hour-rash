@@ -26,7 +26,10 @@ OFF_LIMIT = MAX_SPEED / 3.4
 CENTRIFUGAL = 0.32
 
 # ---- run ------------------------------------------------------------------
-SONG_LEN = 100.0
+# A race runs three minutes. It was 100 seconds, which is about one lap of
+# these roads — long enough to have a race, too short to have a race that
+# turns around.
+SONG_LEN = 180.0
 U_PER_M = 210.0
 KM = 1000 * U_PER_M
 FOG_STEPS = 22

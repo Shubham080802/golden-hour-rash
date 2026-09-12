@@ -44,7 +44,7 @@ The whole product is one inversion: **keep the violence, delete the punishment.*
 
 | Mode | What's at stake |
 |---|---|
-| **Run** | One song, one road, one score. Nothing else. |
+| **Run** | Three minutes, one road, one score. Nothing else. |
 | **Zen** | No rivals, no timer, no score. Just the road and a slow pad. |
 | **Daily** | The same seeded road for everyone, split Guided / Blind. |
 | **Story** | Five legs of one night's ride, ending at a sunrise. |
@@ -93,6 +93,19 @@ Prose types itself out a character at a time; any key fills the rest in.
 Reduced motion (**C**) keeps the sky's slow blend and stills everything that
 moves for its own sake.
 
+## Traffic
+
+The road is about 5 km round and the camera reaches 400 m of it. At the
+original 26 cars that put **two** in view and the highway read as abandoned.
+At 90 it puts six or seven ahead of you, peaking around a dozen.
+
+Measured with a dodging bot, going from 26 to 90 cars takes near misses from
+2.8 to 9.7 per kilometre while knocks taken barely move (1.9 to 2.3) — denser
+traffic is mostly more opportunity if you are reading it. For a rider who is
+not, knocks go 2.5 to 4.4 per kilometre. Drawing them is free: cars are
+bucketed by segment and culled, so 90 costs 5.26 ms a frame against 5.21 for
+26.
+
 ## Roads
 
 Each locale owns its palette, road surface, scenery, terrain profile and music.
@@ -137,13 +150,20 @@ seeds:
 
 | | win | podium | mean finish |
 |---|---|---|---|
-| **Steady** | 50% | 80% | 1.9 |
-| **Racer** (default) | 35% | 75% | 2.4 |
-| **Ruthless** | 25% | 60% | 3.0 |
+| **Steady** | 75% | 95% | 1.5 |
+| **Racer** (default) | 37% | 80% | 2.7 |
+| **Ruthless** | 37% | 50% | 3.6 |
 
-Those are a bot's numbers, and it reads corners with no reaction time while
-never dodging traffic — treat them as the shape of the ladder, not as your
-own odds.
+Those are a bot's numbers over paired seeds — treat them as the shape of the
+ladder, not as your own odds. Read the mean position rather than the win
+rate: at twenty races a win rate carries about ten points of noise, and the
+difficulties are tuned on the steadier measure.
+
+What you are racing against is the **leash**: how far up the road a rider may
+get before easing off and letting the race come back together. It runs from
+76 m at Steady to 174 m at Ruthless. Over three minutes the grid start washes
+out long before the flag, so the leash is most of what the difficulty setting
+means.
 
 Daily always runs at **Racer** whatever your setting is. A shared board cannot
 mean anything if the field is softer for some players than others.
@@ -199,8 +219,13 @@ corner risk, and far more willingness to come looking for you.
 | Hit a rival | 130 |
 | Overtake | 180 |
 | Knockdown — a hit that puts them in the dirt | 260 |
-| Clean run — two contacts or fewer | 800 |
+| Clean run — inside the contact allowance | 800 |
 | **Perfect run** — none at all | **2,500** |
+
+The clean-run allowance is a rate, not a count: about four fifths of a knock
+per kilometre ridden, so roughly seven over a full three-minute race. It was
+a flat two, which was fair over 100 seconds of a quiet road and unreachable
+over three minutes of a busy one — a bonus nobody can earn is not a bonus.
 
 A pip in the HUD tracks contact live, so the run always has something to
 protect. **Clean run** is the reachable tier; **perfect** asks for a whole
