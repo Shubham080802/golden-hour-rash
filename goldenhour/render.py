@@ -39,6 +39,7 @@ class Renderer:
         self._bloom = {}
         self._clouds = None
         self._air = None
+        self._flash = None
         self._stars_cache = None
         self._star_t = 0
         self._fog = {}
@@ -106,6 +107,11 @@ class Renderer:
         self._bloom[key] = surf
         return surf
 
+    def flash_layer(self, w, h):
+        if self._flash is None or self._flash.get_size() != (w, h):
+            self._flash = pygame.Surface((w, h), pygame.SRCALPHA)
+        return self._flash
+
     def air_layer(self, w, h):
         """Scratch alpha surface reused each frame — allocating one per frame
         at scene resolution is not free."""
@@ -122,21 +128,21 @@ class Renderer:
         key = (w, h)
         if self._vig_key == key:
             return self._vig
+        # A vignette darkens the EDGES. pygame.draw overwrites alpha rather
+        # than blending it, so: flood the surface at full strength, then lay
+        # successively smaller and fainter discs over it. Each pixel ends up
+        # with the alpha of the smallest disc that covers it, which falls to
+        # nothing in the middle and leaves the corners at full strength.
+        peak = 96
         surf = pygame.Surface((w, h), pygame.SRCALPHA)
-        steps = 22
-        cx, cy = w // 2, int(h * 0.55)
-        maxr = int(h * 0.95)
-        for i in range(steps, 0, -1):
-            t = i / steps
-            a = int(118 * (t ** 2.4))
-            pygame.draw.circle(surf, (8, 4, 16, a), (cx, cy), int(maxr * t))
-        # invert: we drew the dark in the middle, so redo as rings outward
-        surf.fill((0, 0, 0, 0))
+        surf.fill((8, 4, 16, peak))
+        cx, cy = w // 2, int(h * 0.56)
+        maxr = math.hypot(w, h) * 0.62
+        steps = 26
         for i in range(steps):
-            t = i / steps
-            r = int(maxr * (1 - t))
-            a = int(118 * (t ** 1.8))
-            pygame.draw.circle(surf, (8, 4, 16, a), (cx, cy), r)
+            r = maxr * (1 - i / steps)
+            a = int(peak * (r / maxr) ** 2.2)
+            pygame.draw.circle(surf, (8, 4, 16, a), (cx, cy), int(r))
         self._vig = surf
         self._vig_key = key
         return surf

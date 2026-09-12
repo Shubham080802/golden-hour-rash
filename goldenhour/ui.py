@@ -85,7 +85,7 @@ class Ui:
 
     def scrim(self, s, w, h):
         veil = pygame.Surface((w, h), pygame.SRCALPHA)
-        veil.fill((12, 6, 24, 216))
+        veil.fill((12, 6, 24, 178))
         s.blit(veil, (0, 0))
 
     # ---- HUD -------------------------------------------------------------
@@ -135,7 +135,7 @@ class Ui:
                 self._callout(s, g, w, h)
 
         keys = ["← →  steer", "J / space  swing", "M  music",
-                "F  graphics", "Esc  end ride"]
+                "F  graphics", "[ ]  brightness", "Esc  end ride"]
         for i, k in enumerate(keys):
             self.text(s, k, self.f.tiny, MUTED, w - 16, h - 18 - (len(keys) - 1 - i) * 14,
                       "topright")

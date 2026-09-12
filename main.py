@@ -77,7 +77,9 @@ def photo(screen, g):
     try:
         shots.mkdir(parents=True, exist_ok=True)
         name = shots / ("ghr-" + _dt.datetime.now().strftime("%Y%m%d-%H%M%S") + ".png")
-        pygame.image.save(screen, str(name))
+        # drop the alpha channel: a display-format surface carries one, and
+        # saving it straight out writes a fully transparent image
+        pygame.image.save(screen.convert(24), str(name))
         return f"Photo saved to {name.parent.name}/{name.name}"
     except (OSError, pygame.error):
         return "Could not write the photo"
@@ -92,6 +94,12 @@ def keydown(g, key):
         g.data["settings"]["reduced_motion"] = g.reduced
         store.save(g.data)
         g.postfx.note("Reduced motion: " + ("on" if g.reduced else "off"))
+        return
+    if key in (pygame.K_LEFTBRACKET, pygame.K_RIGHTBRACKET):
+        step = -1 if key == pygame.K_LEFTBRACKET else 1
+        g.postfx.step_brightness(step)
+        g.data["settings"]["brightness"] = g.postfx.brightness
+        store.save(g.data)
         return
     if key == pygame.K_f:
         g.postfx.cycle()
@@ -195,6 +203,7 @@ def main():
     game = Game(renderer, audio, data)
     game.postfx = PostFX(data["settings"].get("quality", "high"))
     game.reduced = data["settings"].get("reduced_motion", False)
+    game.postfx.brightness = data["settings"].get("brightness", 1.0)
     game.locale_data = lambda: __import__(
         "goldenhour.locales", fromlist=["LOCALES"]).LOCALES[game.locale]
 
@@ -250,13 +259,19 @@ def main():
         fx.bloom(scene)
         if game.phase == "playing" and not game.reduced:
             fx.speed_blur(scene, max(0.0, game.speed / MAX_SPEED - 0.45) / 0.55)
-        fx.resolve(scene, screen)
-
-        screen.blit(renderer.vignette(w, h), (0, 0))
+        # Vignette and flash go onto the SCENE, not the window. The scene
+        # carries a zero alpha channel, resolve copies that into the display
+        # surface, and a per-pixel-alpha blit onto a zero-alpha destination
+        # blends wrong — it floods the frame with the overlay's own colour.
+        sw, sh = scene.get_size()
+        scene.blit(renderer.vignette(sw, sh), (0, 0))
         if game.flash > 0.01:
-            fl = pygame.Surface((w, h), pygame.SRCALPHA)
+            fl = renderer.flash_layer(sw, sh)
             fl.fill((*game.flash_col, int(70 * game.flash)))
-            screen.blit(fl, (0, 0))
+            scene.blit(fl, (0, 0))
+
+        fx.resolve(scene, screen)
+        fx.apply_brightness(screen)
 
         if game.photo:
             game.photo = False

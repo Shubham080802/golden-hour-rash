@@ -32,6 +32,7 @@ class PostFX:
         self._slow_for = 0.0
         self.last_note = ""
         self._note_t = 0.0
+        self.brightness = 1.0
 
     # ---- scene surface ---------------------------------------------------
     def scene_for(self, w, h):
@@ -105,6 +106,27 @@ class PostFX:
             z = pygame.transform.scale(scene, (zw, zh))   # nearest: it is a blur
             z.set_alpha(int(alpha * amount))
             scene.blit(z, (-(zw - w) // 2, -(zh - h) // 2))
+
+    BRIGHTNESS_STOPS = (0.85, 1.0, 1.15, 1.30, 1.50)
+
+    def step_brightness(self, step):
+        stops = self.BRIGHTNESS_STOPS
+        i = min(range(len(stops)), key=lambda j: abs(stops[j] - self.brightness))
+        self.brightness = stops[max(0, min(len(stops) - 1, i + step))]
+        self.note(f"Brightness {int(self.brightness * 100)}%")
+        return self.brightness
+
+    def apply_brightness(self, screen):
+        """A dusk palette can be unreadable on a bright panel. Lift or drop
+        the whole frame after everything else has had its say."""
+        if abs(self.brightness - 1.0) < 0.01:
+            return
+        if self.brightness > 1.0:
+            v = int(min(90, (self.brightness - 1.0) * 200))
+            screen.fill((v, v, v), special_flags=pygame.BLEND_RGB_ADD)
+        else:
+            v = int(255 * self.brightness)
+            screen.fill((v, v, v), special_flags=pygame.BLEND_RGB_MULT)
 
     def resolve(self, scene, screen):
         """Down-sample the supersampled scene into the window."""
