@@ -15,6 +15,8 @@ J or Space    swing          (or A / X)
 Esc           pause / end ride
 M             music on / off
 F             graphics quality
+C             reduced motion on / off
+P             photo mode — writes a PNG with no interface
 R             record room (title screen)
 1 / 2 / 3     Run / Zen / Daily
 ```
@@ -101,6 +103,31 @@ Fifteen **achievements** persist and appear in the record room.
 A **rear view** above the road shows who is behind you and on which shoulder —
 the standings tell you a rival is close, this tells you which side to expect
 them. A ring around a marker means they are coming for the place back.
+
+## Run modifiers
+
+Before a **Run** you are offered three cards and take one. Every card is a
+trade rather than an upgrade, so the choice is a choice:
+
+| | |
+|---|---|
+| **Glass Cannon** | Double points. The combo decays twice as fast. |
+| **Rush Hour** | Twice the traffic. Near misses pay triple. |
+| **Grudge Match** | Every rival rides angry all race. Hits pay double. |
+| **Tailwind** | Twelve percent more top speed. Corners punish twice as hard. |
+| **Featherweight** | Traffic barely slows you. No perfect-run bonus. |
+| **Unbroken** | The combo never times out. Any contact wipes it to zero. |
+| **Breakaway** | Start mid-pack instead of last. Rivals are five percent quicker. |
+| **Straight Up** | No modifier. The road as it comes. |
+
+Daily never offers them — that board has to stay comparable.
+
+## Photo mode and comfort
+
+**P** writes the current frame, without any interface, to
+`~/.golden-hour-rash/photos/`. **C** turns off camera bounce and speed blur for
+anyone who would rather not have them. A gamepad rumbles on landed hits and
+collisions.
 
 ## Classification and records
 

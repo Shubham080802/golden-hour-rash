@@ -31,8 +31,13 @@ def dispatch(g, action):
         if val == "daily":
             g.audio.stop_music()
             g.screen = "diff"
+        elif val == "run":
+            g.open_mods()
         else:
             g.start_mode(val)
+    elif kind == "mod":
+        g.start_mode("run", mod=__import__(
+            "goldenhour.modifiers", fromlist=["by_id"]).by_id(val))
     elif kind == "diff":
         g.start_mode("daily", val)
     elif kind == "screen":
@@ -63,7 +68,31 @@ def dispatch(g, action):
         g.rec_mode = val
 
 
+def photo(screen, g):
+    """Photo mode: the frame as it stands, without the interface, written out
+    beside the save file. Cheap to add and the nicest thing to share."""
+    import datetime as _dt
+    from pathlib import Path
+    shots = Path(store.SAVE_DIR) / "photos"
+    try:
+        shots.mkdir(parents=True, exist_ok=True)
+        name = shots / ("ghr-" + _dt.datetime.now().strftime("%Y%m%d-%H%M%S") + ".png")
+        pygame.image.save(screen, str(name))
+        return f"Photo saved to {name.parent.name}/{name.name}"
+    except (OSError, pygame.error):
+        return "Could not write the photo"
+
+
 def keydown(g, key):
+    if key == pygame.K_p:
+        g.photo = True                      # captured after the world is drawn
+        return
+    if key == pygame.K_c:
+        g.reduced = not g.reduced
+        g.data["settings"]["reduced_motion"] = g.reduced
+        store.save(g.data)
+        g.postfx.note("Reduced motion: " + ("on" if g.reduced else "off"))
+        return
     if key == pygame.K_f:
         g.postfx.cycle()
         g.data["settings"]["quality"] = g.postfx.quality
@@ -165,6 +194,7 @@ def main():
     data = store.load()
     game = Game(renderer, audio, data)
     game.postfx = PostFX(data["settings"].get("quality", "high"))
+    game.reduced = data["settings"].get("reduced_motion", False)
     game.locale_data = lambda: __import__(
         "goldenhour.locales", fromlist=["LOCALES"]).LOCALES[game.locale]
 
@@ -198,7 +228,15 @@ def main():
 
         if game.phase == "playing":
             read_steering(game, pads)
+        shake_before = game.shake
         game.update(dt)
+        # a landed hit or a collision should be felt, not just seen
+        if game.shake > shake_before + 0.25:
+            for pad in pads:
+                try:
+                    pad.rumble(min(1.0, game.shake), min(1.0, game.shake * 0.6), 160)
+                except (AttributeError, pygame.error):
+                    pass
 
         w, h = screen.get_size()
         fx = game.postfx
@@ -210,7 +248,7 @@ def main():
         scene.fill(INK)
         game.draw_world(scene, *scene.get_size())
         fx.bloom(scene)
-        if game.phase == "playing":
+        if game.phase == "playing" and not game.reduced:
             fx.speed_blur(scene, max(0.0, game.speed / MAX_SPEED - 0.45) / 0.55)
         fx.resolve(scene, screen)
 
@@ -220,8 +258,14 @@ def main():
             fl.fill((*game.flash_col, int(70 * game.flash)))
             screen.blit(fl, (0, 0))
 
+        if game.photo:
+            game.photo = False
+            game.postfx.note(photo(screen, game))
+
         ui.begin()
-        if game.screen == "race":
+        if game.screen == "mods":
+            ui.mods(screen, game, w, h)
+        elif game.screen == "race":
             ui.hud(screen, game, w, h)
         elif game.screen == "title":
             ui.title(screen, game, w, h)

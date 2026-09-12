@@ -140,6 +140,12 @@ class Ui:
             self.text(s, k, self.f.tiny, MUTED, w - 16, h - 18 - (len(keys) - 1 - i) * 14,
                       "topright")
 
+        if g.mod["id"] != "none" and not zen:
+            chip = self.f.tiny.render(g.mod["name"].upper(), True, SUN)
+            box = chip.get_rect(topleft=(16, 60))
+            pygame.draw.rect(s, SUN, box.inflate(14, 10), 1, border_radius=3)
+            s.blit(chip, box)
+
         self._pops(s, g, w, h)
         self.toasts(s, g, w)
 
@@ -362,6 +368,36 @@ class Ui:
         self.button(s, r, "MUSIC OFF" if g.audio.muted else "MUSIC ON", ("mute", None),
                     font=self.f.tiny)
         pygame.draw.circle(s, HOT if g.audio.muted else MINT, (r.x + 10, r.centery), 4)
+
+    def mods(self, s, g, w, h):
+        self.scrim(s, w, h)
+        cx = w // 2
+        self.text(s, "BEFORE YOU RIDE", self.f.tag, SUN, cx, int(h * 0.13), "midtop")
+        self.text(s, "TAKE ONE", self.f.title, CREAM, cx, int(h * 0.16), "midtop")
+        self.text(s, "Every card is a trade, not an upgrade.",
+                  self.f.small, MUTED, cx, int(h * 0.26), "midtop")
+        cards = g.mod_choices
+        cw = min(230, (w - 120) // len(cards))
+        total = cw * len(cards) + 8 * (len(cards) - 1)
+        x0 = cx - total // 2
+        for i, m in enumerate(cards):
+            r = pygame.Rect(x0 + i * (cw + 8), int(h * 0.33), cw, 132)
+            self.button(s, r, "", ("mod", m["id"]))
+            accent = MUTED if m["id"] == "none" else SUN
+            self.text(s, m["name"], self.f.body, accent, r.centerx, r.y + 14, "midtop")
+            words, line, lines = m["desc"].split(), "", []
+            for word in words:
+                trial = (line + " " + word).strip()
+                if self.f.tiny.size(trial)[0] > cw - 22:
+                    lines.append(line)
+                    line = word
+                else:
+                    line = trial
+            lines.append(line)
+            for j, ln in enumerate(lines[:5]):
+                self.text(s, ln, self.f.tiny, MUTED, r.centerx, r.y + 42 + j * 15, "midtop")
+        self.button(s, pygame.Rect(cx - 50, int(h * 0.72), 100, 30), "BACK",
+                    ("screen", "title"))
 
     def diff(self, s, g, w, h):
         self.scrim(s, w, h)

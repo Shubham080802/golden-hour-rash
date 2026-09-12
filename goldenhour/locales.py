@@ -82,6 +82,7 @@ LOCALES = {
         "horizon": hexc("#CFC1AE"), "sun": hexc("#FFF6E4"), "accent": hexc("#C8543C"),
         "cloud_hi": hexc("#EAF0F4"), "cloud_lo": hexc("#385470"),
         "ridge_far": hexc("#728698"), "ridge_near": hexc("#1F2C3A"),
+        "snow": hexc("#F2F6F8"),
         "hill": hexc("#1A2630"), "hill2": hexc("#26343F"),
         "lanes": True, "rails": True, "bpm": 132, "prop_density": 0.42,
         "props": [{"kind": "pine", "scale": 1.0}, {"kind": "pine", "scale": 0.75},

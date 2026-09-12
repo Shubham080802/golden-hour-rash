@@ -10,6 +10,7 @@ from .config import (ACCEL, BRAKE, CAM_DEPTH, CAM_H, CENTRIFUGAL, DECEL, DRAW_DI
                      FOG_STEPS, MAX_SPEED, OFF_DECEL, OFF_LIMIT, PLAYER_Z, PTS,
                      SEG_LEN, SONG_LEN, U_PER_M, clamp, lerp, mix)
 from .locales import LOCALE_IDS, LOCALES
+from .modifiers import NONE as MOD_NONE, offer as offer_mods
 from .racers import (Car, RIDER_SPECS, Rider, fastest_km, push_trace,
                      time_at_distance)
 from .render import project
@@ -43,6 +44,10 @@ class Game:
         self.rec_road = "coast"
         self.rec_mode = "run"
         self.toasts = []
+        self.mod = MOD_NONE
+        self.reduced = False
+        self.mod_choices = []
+        self.photo = False
 
         self.picked_locale = data["settings"].get("locale", "coast")
         if self.picked_locale not in LOCALES:
@@ -60,13 +65,20 @@ class Game:
     def make_actors(self):
         rng = Rng(self.seed ^ 0x9E3779B9)
         zen = self.mode == "zen"
-        self.cars = [Car(rng, self.track) for _ in range(14 if zen else 26)]
+        n_cars = 14 if zen else int(26 * self.mod.get("traffic", 1.0))
+        self.cars = [Car(rng, self.track) for _ in range(n_cars)]
         self.riders = []
         if not zen:
             bump = LOCALES[self.locale]["terrain"]["ai_skill"]
+            head = self.mod.get("head_start")
             for i, spec in enumerate(RIDER_SPECS):
-                self.riders.append(Rider(spec, i, rng, self.track,
-                                         self.pos + PLAYER_Z, bump))
+                r = Rider(spec, i, rng, self.track, self.pos + PLAYER_Z, bump)
+                if head:                       # slot in mid-pack, not at the back
+                    r.dist -= 6000
+                    r.z = (r.z - 6000) % self.track.length
+                if self.mod.get("rival_pace"):
+                    r.nerve = min(1.0, r.nerve * self.mod["rival_pace"])
+                self.riders.append(r)
         self.actors = self.cars + self.riders
         for r in self.riders:
             r.ahead = r.dist > self.dist
@@ -144,7 +156,16 @@ class Game:
         self.track = build_track(self.seed, LOCALES[self.locale])
         self.reset_ride()
 
-    def start_mode(self, mode, diff="hard"):
+    def open_mods(self):
+        """Offer the cards. Daily is excluded — its board must stay fair."""
+        self.mod_choices = offer_mods(self.rnd)
+        self.screen = "mods"
+        self.audio.stop_music()
+
+    def start_mode(self, mode, diff="hard", mod=None):
+        self.mod = mod or MOD_NONE
+        if mode != "run":
+            self.mod = MOD_NONE
         self.mode = mode
         self.diff = diff if mode == "daily" else "hard"
         self.guide = (mode == "daily" and self.diff == "easy")
@@ -181,8 +202,8 @@ class Game:
     def add_combo(self, n, label, col, pts):
         self.combo += n
         self.best_combo = max(self.best_combo, self.combo)
-        self.combo_t = 4.2
-        award = round((pts or 0) * self.mult())
+        self.combo_t = 4.2 * self.mod.get("combo_t", 1.0)
+        award = round((pts or 0) * self.mult() * self.mod.get("score", 1.0))
         self.score += award
         if label:
             self.pop(f"{label}  +{award}" if award else label, col)
@@ -193,6 +214,8 @@ class Game:
         if self.phase != "playing" or self.mode == "zen":
             return
         self.contacts += 1
+        if self.mod.get("contact_wipes"):
+            self.combo = 0
         if not self.clean:
             return
         self.clean = False
@@ -200,6 +223,7 @@ class Game:
 
     def collide(self, severity):
         self.break_clean()
+        severity *= self.mod.get("collide", 1.0)
         self.speed *= (1 - severity * 0.42)
         self.dazed = 0.42
         self.shake = max(self.shake, severity)
@@ -265,7 +289,8 @@ class Game:
             self.flash, self.flash_col = 0.4, (255, 194, 74)
             self.audio.sfx_hit()
             self.burst((255, 194, 74), 16, self.swing_side * 0.14)
-            self.add_combo(1, "HIT · " + best.name, (255, 63, 107), PTS["hit"])
+            self.add_combo(1, "HIT · " + best.name, (255, 63, 107),
+                           PTS["hit"] * self.mod.get("hit", 1.0))
         else:
             self.audio.sfx_whiff()
 
@@ -335,7 +360,8 @@ class Game:
         # corner is a real decision rather than a free one
         scrub = abs(p_seg.curve) * speed_pct
         if scrub > 2.2:
-            self.speed -= (scrub - 2.2) * MAX_SPEED * 0.055 * dt
+            self.speed -= ((scrub - 2.2) * MAX_SPEED * 0.055 * dt
+                           * self.mod.get("scrub", 1.0))
 
         off = abs(self.player_x) > 0.97
         if off and self.speed > OFF_LIMIT * 0.5:
@@ -348,7 +374,7 @@ class Game:
             self.speed += OFF_DECEL * dt
             self.shake = max(self.shake, 0.22)
 
-        self.speed = clamp(self.speed, 0, MAX_SPEED)
+        self.speed = clamp(self.speed, 0, MAX_SPEED * self.mod.get("speed", 1.0))
         self.player_x = clamp(self.player_x, -2.6, 2.6)
 
         self.pos = (self.pos + self.speed * dt) % self.track.length
@@ -389,12 +415,15 @@ class Game:
                 elif lateral < 0.72 and playing and not zen:
                     c.near = True
                     self.near += 1
-                    self.add_combo(1, "NEAR MISS", (255, 241, 222), PTS["near"])
+                    self.add_combo(1, "NEAR MISS", (255, 241, 222),
+                                   PTS["near"] * self.mod.get("near", 1.0))
                     self.audio.sfx_near()
             if abs(d) > 900:
                 c.near = False
 
         for r in self.riders:
+            if self.mod.get("always_fight"):
+                r.fight = max(r.fight, 1.0)
             r.update(dt, self)
 
         if self.combo_t > 0:
@@ -481,7 +510,7 @@ class Game:
 
     def build_results(self):
         zen = self.mode == "zen"
-        perfect = (not zen) and self.clean
+        perfect = (not zen) and self.clean and not self.mod.get("no_perfect")
         if perfect:
             self.score += PTS["perfect"]
         res = {"zen": zen, "perfect": perfect, "score": int(self.score),
@@ -505,6 +534,7 @@ class Game:
                "combo": self.best_combo, "clipped": self.clipped_count,
                "passed_by": self.passed_by, "overtakes": self.overtakes,
                "mode": self.mode, "diff": self.diff, "locale": self.locale,
+               "mod": self.mod["id"],
                "score": int(self.score), "fkm": me["fkm"]}
         for ident, name, desc in achievements.check(self.data, run):
             self.toasts.append({"name": name, "desc": desc, "life": 5.0})
@@ -611,7 +641,8 @@ class Game:
         self.draw_player(surf, w, h)
 
     def draw_player(self, surf, w, h):
-        bounce = math.sin(self.frame * 0.42) * (self.speed / MAX_SPEED) * h * 0.006
+        bounce = (0.0 if self.reduced
+                  else math.sin(self.frame * 0.42) * (self.speed / MAX_SPEED) * h * 0.006)
         pw = w * 0.15
         y = h * 0.90 + bounce - self.air * h * 0.16
         lean = self.lean + (math.sin(self.dazed * 30) * 0.5 if self.dazed > 0 else 0)

@@ -35,6 +35,7 @@ for scr, fn in [("title","title"), ("diff","diff"), ("records","records")]:
     print("screen", scr, "OK")
 g.rec_tab = "ach"; draw("records"); g.rec_tab = "times"
 print("screen records/achievements OK")
+g.open_mods(); draw("mods"); print("screen mods OK")
 
 # --- benchmark the world pass ---
 g.start_mode("run")
@@ -62,6 +63,20 @@ for loc in ["coast","dunes","ridge","canyon"]:
           f"clean={g.clean} hits={g.hits} pass={g.overtakes} "
           f"gaps={[None if x['gap'] is None else round(x['gap'],2) for x in rows[1:4]]}")
     draw("results")
+
+# --- every modifier, end to end ---
+from goldenhour.modifiers import MODIFIERS, NONE
+for m in MODIFIERS + [NONE]:
+    g.set_locale("coast"); g.start_mode("run", mod=m)
+    n = 0
+    while g.phase == "playing" and n < 60*60*3:
+        seg = g.track.find(g.pos + g.PLAYER_Z)
+        g.steer = max(-1, min(1, (-seg.curve*0.09 - g.player_x)*2.6))
+        if n % 34 == 0: g.try_swing()
+        g.update(1/60); n += 1
+    print(f"  mod {m['id']:9s} P{g.results['pos']}/{g.results['of']} "
+          f"score={g.results['score']:>7,} cars={len(g.cars)} "
+          f"perfect={g.results['perfect']}")
 
 # --- zen + daily ---
 g.start_mode("zen")
