@@ -70,6 +70,29 @@ def difficulty_name(ident):
     return "Racer"
 
 
+# ---- cameras --------------------------------------------------------------
+# Camera only. `forward` slides the eye toward the rider as a fraction of the
+# gap between camera and bike, `height` scales the eye height. Neither touches
+# the simulation: collisions and rival distances are always measured from the
+# bike, whatever you are looking through.
+CAMERAS = [
+    {"id": "chase", "name": "Chase", "forward": 0.00, "height": 1.00,
+     "bike": 0.15, "anchor": 0.90, "bob": 1.0},
+    {"id": "close", "name": "Close", "forward": 0.42, "height": 0.74,
+     "bike": 0.19, "anchor": 1.02, "bob": 1.2},
+    {"id": "rider", "name": "Rider", "forward": 0.94, "height": 0.40,
+     "bike": 0.00, "anchor": 1.00, "bob": 1.6},
+]
+DEFAULT_CAMERA = "chase"
+
+
+def camera_by_id(ident):
+    for c in CAMERAS:
+        if c["id"] == ident:
+            return c
+    return CAMERAS[0]
+
+
 # ---- window ---------------------------------------------------------------
 WIN_W, WIN_H = 1000, 640
 FPS = 60

@@ -481,6 +481,66 @@ class Renderer:
                              max(1, int(w * 0.03)))
 
     # ---- scenery ----------------------------------------------------------
+    def draw_cockpit(self, surf, w, h, bounce, lean, swing, swing_side, bike, suit):
+        """The rider's own view: screen, bar ends, mirrors, gloves.
+
+        Everything leans the opposite way to the camera, which is what sells
+        the lean from the saddle — the world tilts, the bars stay with you.
+        """
+        poly = pygame.draw.polygon
+        tilt = lean * w * 0.055
+        base_y = h + bounce
+        metal = (128, 124, 140)
+        dark = shade(bike, -0.5)
+
+        # fairing top and screen, across the bottom of the view
+        poly(surf, dark, [(w * 0.24 - tilt, base_y), (w * 0.76 - tilt, base_y),
+                          (w * 0.63 - tilt, base_y - h * 0.16),
+                          (w * 0.37 - tilt, base_y - h * 0.16)])
+        poly(surf, shade(bike, -0.28),
+             [(w * 0.30 - tilt, base_y - h * 0.10), (w * 0.70 - tilt, base_y - h * 0.10),
+              (w * 0.60 - tilt, base_y - h * 0.19), (w * 0.40 - tilt, base_y - h * 0.19)])
+        # the screen is glass, not a panel: tint whatever is behind it
+        glass = pygame.Surface((w, h), pygame.SRCALPHA)
+        poly(glass, (150, 170, 196, 70),
+             [(w * 0.41 - tilt, base_y - h * 0.19), (w * 0.59 - tilt, base_y - h * 0.19),
+              (w * 0.55 - tilt, base_y - h * 0.27), (w * 0.45 - tilt, base_y - h * 0.27)])
+        surf.blit(glass, (0, 0))
+
+        for sx in (-1, 1):
+            bx = w * 0.5 + sx * w * 0.255 - tilt * 1.4
+            by = base_y - h * 0.13
+            # bar and grip
+            pygame.draw.line(surf, metal, (w * 0.5 - tilt, base_y - h * 0.085),
+                             (bx, by), max(2, int(w * 0.012)))
+            pygame.draw.circle(surf, (26, 22, 34), (int(bx), int(by)),
+                               max(3, int(w * 0.022)))
+            # mirror on its stalk
+            mx, my = bx + sx * w * 0.048, by - h * 0.115
+            pygame.draw.line(surf, shade(metal, -0.3), (bx, by), (mx, my),
+                             max(2, int(w * 0.008)))
+            pygame.draw.ellipse(surf, (44, 40, 56),
+                                pygame.Rect(mx - w * 0.028, my - h * 0.021,
+                                            w * 0.056, h * 0.042))
+            pygame.draw.ellipse(surf, (104, 112, 134),
+                                pygame.Rect(mx - w * 0.023, my - h * 0.016,
+                                            w * 0.046, h * 0.032))
+            # glove, unless that hand is mid-punch
+            punching = swing > 0 and sx == swing_side
+            if not punching:
+                pygame.draw.circle(surf, suit, (int(bx), int(by - h * 0.012)),
+                                   max(3, int(w * 0.026)))
+
+        if swing > 0:
+            ext = math.sin(swing * math.pi)
+            fx = w * 0.5 + swing_side * w * (0.255 + ext * 0.15) - tilt * 1.4
+            fy = base_y - h * (0.13 + ext * 0.16)
+            pygame.draw.line(surf, suit, (w * 0.5 + swing_side * w * 0.14 - tilt,
+                                          base_y - h * 0.06), (fx, fy),
+                             max(3, int(w * 0.028)))
+            pygame.draw.circle(surf, (232, 188, 147), (int(fx), int(fy)),
+                               max(3, int(w * 0.030)))
+
     def draw_prop(self, surf, kind, x, y, w, f, c1, c2):
         if kind == "palm":
             self._palm(surf, x, y, w, f, c1)

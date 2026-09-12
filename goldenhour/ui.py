@@ -11,7 +11,7 @@ import pygame
 
 from .achievements import ACHIEVEMENTS, progress
 from .config import (CREAM, EMBER, HOT, INK, LINE, MINT, MUTED, PTS, SONG_LEN,
-                     difficulty_name,
+                     camera_by_id, difficulty_name,
                      SUN, U_PER_M, clamp, lerp)
 from .game import daily_locale
 from .locales import LOCALE_IDS, LOCALES
@@ -173,8 +173,9 @@ class Ui:
                              ("J / Space", "Punch"), ("Esc", "Pause")])
 
         if not zen:
-            lab = self.f.tiny.render(difficulty_name(g.race_difficulty).upper(),
-                                     True, MUTED)
+            lab = self.f.tiny.render(
+                difficulty_name(g.race_difficulty).upper() + "  ·  "
+                + camera_by_id(g.camera)["name"].upper(), True, MUTED)
             lb = lab.get_rect(topleft=(self.px(16), self.px(86)))
             pygame.draw.rect(s, LINE, lb.inflate(self.px(14), self.px(10)), 1,
                              border_radius=3)
@@ -459,6 +460,9 @@ class Ui:
             d = pygame.Rect(r.x - bw - self.px(8), r.y, bw, bh)
             self.button(s, d, difficulty_name(g.difficulty).upper() + " · D",
                         ("difficulty", None), font=self.f.tiny)
+            v = pygame.Rect(d.x - bw - self.px(8), r.y, bw, bh)
+            self.button(s, v, camera_by_id(g.camera)["name"].upper() + " · V",
+                        ("camera", None), font=self.f.tiny)
         pygame.draw.circle(s, HOT if g.audio.muted else MINT, (r.x + 12, r.centery),
                            max(3, int(4 * self._font_scale)))
 

@@ -17,6 +17,7 @@ M             sound on / off (music and effects)
 F             graphics quality
 C             reduced motion on / off
 P             photo mode — writes a PNG with no interface
+V             camera view
 D             difficulty (title screen)
 R             record room (title screen)
 1 / 2 / 3     Run / Zen / Daily
@@ -67,6 +68,23 @@ Each locale owns its palette, road surface, scenery, terrain profile and music.
 
 Zen keeps the road's key so it still sounds like that place, but drops the kit
 for root, fifth and a long pad at 76 bpm.
+
+## Cameras
+
+**V** cycles the view at any time, mid-race included.
+
+| | |
+|---|---|
+| **Chase** | Behind and above. The whole machine, the most road. |
+| **Close** | Dropped in and tucked up behind the rider's shoulders. |
+| **Rider** | From the saddle: screen, bar ends, mirrors and gloves, nothing else. |
+
+The camera is a camera. `forward` slides the eye along the line between the
+chase position and the bike, `height` scales the eye height, and neither is
+allowed anywhere near the simulation — collisions and rival distances are
+always measured from the bike. Racing an identical seed through all three
+views returns the same finishing position, score, hit count and distance to
+the unit.
 
 ## Difficulty
 

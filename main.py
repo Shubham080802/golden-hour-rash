@@ -47,6 +47,8 @@ def dispatch(g, action):
             g.screen = val
         if val == "records":
             g.rec_road = g.picked_locale
+    elif kind == "camera":
+        g.postfx.note("Camera: " + g.cycle_camera())
     elif kind == "difficulty":
         from goldenhour.config import difficulty_name
         g.postfx.note("Field: " + difficulty_name(g.cycle_difficulty()))
@@ -89,6 +91,9 @@ def photo(screen, g):
 
 
 def keydown(g, key):
+    if key == pygame.K_v:
+        g.postfx.note("Camera: " + g.cycle_camera())
+        return
     if key == pygame.K_p:
         g.photo = True                      # captured after the world is drawn
         return
@@ -229,7 +234,9 @@ def main():
             elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
                 dispatch(game, ui.click(ev.pos))
             elif ev.type == pygame.JOYBUTTONDOWN:
-                if ev.button in (0, 2):                  # A / X — swing
+                if ev.button in (4, 5):                  # shoulders — camera
+                    game.postfx.note("Camera: " + game.cycle_camera())
+                elif ev.button in (0, 2):                # A / X — swing
                     if game.phase == "playing":
                         game.try_swing()
                     elif game.phase == "title":

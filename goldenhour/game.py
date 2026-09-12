@@ -6,7 +6,8 @@ import random
 import pygame
 
 from . import achievements, store
-from .config import (ACCEL, BRAKE, CAM_DEPTH, CAM_H, CENTRIFUGAL, DECEL, DEFAULT_DIFFICULTY,
+from .config import (ACCEL, BRAKE, CAM_DEPTH, CAM_H, CAMERAS, CENTRIFUGAL, DECEL,
+                     DEFAULT_CAMERA, DEFAULT_DIFFICULTY, camera_by_id,
                      DIFFICULTIES, DRAW_DIST, difficulty_edge,
                      FOG_STEPS, MAX_SPEED, OFF_DECEL, OFF_LIMIT, PLAYER_Z, PTS,
                      SEG_LEN, SONG_LEN, U_PER_M, clamp, lerp, mix)
@@ -48,6 +49,9 @@ class Game:
         self.toasts = []
         self.mod = MOD_NONE
         self.reduced = False
+        self.camera = data["settings"].get("camera", DEFAULT_CAMERA)
+        if self.camera not in [c["id"] for c in CAMERAS]:
+            self.camera = DEFAULT_CAMERA
         self.difficulty = data["settings"].get("difficulty", DEFAULT_DIFFICULTY)
         if self.difficulty not in [d[0] for d in DIFFICULTIES]:
             self.difficulty = DEFAULT_DIFFICULTY
@@ -169,6 +173,13 @@ class Game:
         """Daily always runs at the default. A shared board cannot mean
         anything if the field is softer for some players than others."""
         return DEFAULT_DIFFICULTY if self.mode == "daily" else self.difficulty
+
+    def cycle_camera(self):
+        ids = [c["id"] for c in CAMERAS]
+        self.camera = ids[(ids.index(self.camera) + 1) % len(ids)]
+        self.data["settings"]["camera"] = self.camera
+        store.save(self.data)
+        return camera_by_id(self.camera)["name"]
 
     def cycle_difficulty(self):
         keys = [d[0] for d in DIFFICULTIES]
@@ -593,8 +604,11 @@ class Game:
         loc = LOCALES[loc_id]
         fog = r.fog_table(loc_id)
 
-        base = self.track.find(self.pos)
-        base_pct = (self.pos % SEG_LEN) / SEG_LEN
+        view = camera_by_id(self.camera)
+        # slide the eye along the line between the chase position and the bike
+        cam_pos = (self.pos + PLAYER_Z * view["forward"]) % self.track.length
+        base = self.track.find(cam_pos)
+        base_pct = (cam_pos % SEG_LEN) / SEG_LEN
         p_seg = self.track.find(self.pos + PLAYER_Z)
         p_pct = ((self.pos + PLAYER_Z) % SEG_LEN) / SEG_LEN
         player_y = lerp(p_seg.p1["wy"], p_seg.p2["wy"], p_pct) + self.air * 900 + self.bump
@@ -611,7 +625,7 @@ class Game:
         x = 0.0
         ddx = -(base.curve * base_pct)
         cam_x = self.player_x * 2200
-        cam_y = player_y + CAM_H
+        cam_y = player_y + CAM_H * view["height"]
         n_segs = len(segs)
         drawn = []
 
@@ -620,7 +634,7 @@ class Game:
             seg.looped = seg.index < base.index
             seg.clip = maxy
             seg.proj = self.frame
-            cam_z = self.pos - (self.track.length if seg.looped else 0)
+            cam_z = cam_pos - (self.track.length if seg.looped else 0)
             project(seg.p1, cam_x - x, cam_y, cam_z, w, h)
             project(seg.p2, cam_x - x - ddx, cam_y, cam_z, w, h)
             x += ddx
@@ -680,7 +694,7 @@ class Game:
         self.weather.draw(air, w, h, horizon, pct, spec)
         surf.blit(air, (0, 0))
 
-        self.draw_player(surf, w, h)
+        self.draw_player(surf, w, h, view)
 
     def shake_offset(self, w, h):
         """Camera kick for impacts. Driven by the frame counter rather than a
@@ -691,12 +705,21 @@ class Game:
         return (int(math.sin(self.frame * 37.1) * amp),
                 int(math.cos(self.frame * 23.7) * amp * 0.7))
 
-    def draw_player(self, surf, w, h):
+    def draw_player(self, surf, w, h, view=None):
+        view = view or camera_by_id(self.camera)
         bounce = (0.0 if self.reduced
-                  else math.sin(self.frame * 0.42) * (self.speed / MAX_SPEED) * h * 0.006)
-        pw = w * 0.15
-        y = h * 0.90 + bounce - self.air * h * 0.16
+                  else math.sin(self.frame * 0.42) * (self.speed / MAX_SPEED)
+                  * h * 0.006 * view["bob"])
         lean = self.lean + (math.sin(self.dazed * 30) * 0.5 if self.dazed > 0 else 0)
+        swing = (1 - self.swing / 0.26) if self.swing > 0 else 0.0
+        if view["bike"] <= 0:
+            # from the saddle there is no bike to draw, only what you would
+            # actually see over it
+            self.renderer.draw_cockpit(surf, w, h, bounce, lean, swing,
+                                       self.swing_side, (255, 122, 60), (34, 24, 51))
+            return
+        pw = w * view["bike"]
+        y = h * view.get("anchor", 0.90) + bounce - self.air * h * 0.16
         self.renderer.draw_rider(
             surf, w / 2, y, pw, (255, 122, 60), (34, 24, 51),
-            lean, (1 - self.swing / 0.26) if self.swing > 0 else 0.0, self.swing_side)
+            lean, swing, self.swing_side)
