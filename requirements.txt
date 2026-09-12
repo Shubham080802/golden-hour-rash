@@ -1,2 +1,5 @@
-pygame>=2.5
-numpy>=1.24
+# Runtime dependencies. The upper bounds are deliberate: pygame 3 and numpy 3
+# do not exist yet, and this pins the majors the game has actually been run
+# against (pygame 2.6.1, numpy 2.5.3).
+pygame>=2.5,<3
+numpy>=1.24,<3

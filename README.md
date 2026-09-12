@@ -3,10 +3,18 @@
 A stress-relief motorcycle combat racer. Road Rash's catharsis with Road Rash's
 punishment deleted.
 
+**Download** the app for your machine from
+[Releases](https://github.com/Shubham080802/golden-hour-rash/releases), or run
+it from source:
+
 ```bash
 pip install -r requirements.txt
 python main.py
 ```
+
+Python 3.10 or newer. It installs as a package too — `pip install .` puts a
+`golden-hour-rash` command on your path, and `python -m goldenhour` works from
+a checkout.
 
 ```
 ← →  or A/D   steer          (or a gamepad's left stick)
@@ -20,7 +28,7 @@ P             photo mode — writes a PNG with no interface
 V             camera view
 D             difficulty (title screen)
 R             record room (title screen)
-1 / 2 / 3     Run / Zen / Daily
+1 … 5         Run / Zen / Daily / Story / Survive
 ```
 
 ---
@@ -329,6 +337,31 @@ kilometre for every road and format — two capped lists, because ranking by sco
 alone would bound the split table to whatever those ten runs happened to do.
 
 Everything is saved to `~/.golden-hour-rash/save.json`.
+
+## Installing, running, building
+
+| | |
+|---|---|
+| Run from source | `pip install -r requirements.txt` then `python main.py` |
+| Install it | `pip install .` then `golden-hour-rash` |
+| From a checkout | `python -m goldenhour` |
+| Self-test | `python tools/smoke.py` (no display needed) |
+| Layout audit | `python tools/audit_layout.py` |
+| Behaviour audit | `python tools/audit_behaviour.py` |
+| Build an app | `pip install pyinstaller` then `python tools/build_app.py` |
+
+`tools/build_app.py` produces `dist/GoldenHourRash.app` on macOS (a plain
+executable elsewhere) plus a versioned zip beside it. The build is **ad-hoc
+signed, not notarised**, so the first launch on another Mac needs
+right-click → Open, or:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/GoldenHourRash.app
+```
+
+Saves, records and photos live in `~/.golden-hour-rash/`, or wherever
+`GOLDENHOUR_HOME` points. Deleting that folder resets everything; nothing else
+on the machine is touched.
 
 ## Layout
 

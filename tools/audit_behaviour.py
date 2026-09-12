@@ -1,5 +1,5 @@
 """Behaviour audit: determinism, persistence, memory, performance, edges."""
-import os, sys, json, random, time, gc, copy
+import os, sys, json, random, time, gc
 os.environ["SDL_VIDEODRIVER"]="dummy"; os.environ["SDL_AUDIODRIVER"]="dummy"
 HOME = "/tmp/ghr-audit4"
 os.environ["GOLDENHOUR_HOME"] = HOME
@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import pygame
 from goldenhour import store, story
 from goldenhour.audio import Audio
-from goldenhour.config import INK, MAX_SPEED, SURVIVE_HEALTH, SURVIVE_LEN
+from goldenhour.config import INK, MAX_SPEED, SURVIVE_HEALTH
 from goldenhour.game import Game
 from goldenhour.postfx import PostFX
 from goldenhour.render import Renderer

@@ -1,13 +1,13 @@
 """Layout audit: draw every screen at several sizes and catch text that
 runs off the window or lands on other text."""
-import os, sys, random, time
+import os, sys
 os.environ["SDL_VIDEODRIVER"]="dummy"; os.environ["SDL_AUDIODRIVER"]="dummy"
 os.environ["GOLDENHOUR_HOME"]="/tmp/ghr-audit3"
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import pygame
-from goldenhour import store, story
+from goldenhour import store
 from goldenhour.audio import Audio
-from goldenhour.config import INK, MAX_SPEED
+from goldenhour.config import INK
 from goldenhour.game import Game
 from goldenhour.hazards import Hazard
 from goldenhour.postfx import PostFX
