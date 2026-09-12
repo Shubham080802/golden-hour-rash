@@ -13,7 +13,7 @@ python main.py
 ↓    or S     brake          (or B / left trigger)
 J or Space    swing          (or A / X)
 Esc           pause / end ride
-M             music on / off
+M             sound on / off (music and effects)
 F             graphics quality
 C             reduced motion on / off
 P             photo mode — writes a PNG with no interface

@@ -50,6 +50,7 @@ def dispatch(g, action):
     elif kind == "mute":
         g.audio.muted = not g.audio.muted
         g.data["settings"]["music"] = not g.audio.muted
+        g.postfx.note("Sound off" if g.audio.muted else "Sound on")
         store.save(g.data)
     elif kind == "again":
         g.start_mode(g.mode, g.diff)
@@ -284,6 +285,7 @@ def main():
             game.photo = False
             game.postfx.note(photo(screen, game))
 
+        ui.ensure_fonts(h)
         ui.begin()
         if game.screen == "mods":
             ui.mods(screen, game, w, h)

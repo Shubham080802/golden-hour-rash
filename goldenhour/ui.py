@@ -24,20 +24,29 @@ def _font(names, size, bold=False):
     return f
 
 
+BASE_H = 640          # the height the sizes below were chosen against
+
+
 class Fonts:
-    def __init__(self):
+    """Sizes scale with the window. Fixed pixel sizes looked fine at 640 high
+    and became unreadable the moment the window grew."""
+
+    def __init__(self, scale=1.0):
+        self.scale = scale
         disp = "anton,impact,haettenschweiler,arialnarrow,dejavusans"
         ui = "ibmplexsanscondensed,helveticaneue,arialnarrow,arial,dejavusans"
         mono = "ibmplexmono,menlo,dejavusansmono,couriernew,monospace"
-        self.title = _font(disp, 40)
-        self.h2 = _font(disp, 30)
-        self.big = _font(disp, 58)
-        self.num = _font(disp, 24)
-        self.body = _font(ui, 15)
-        self.small = _font(ui, 13)
-        self.mono = _font(mono, 12)
-        self.tiny = _font(mono, 10)
-        self.tag = _font(mono, 10)
+        z = lambda n: max(9, int(round(n * scale)))
+        self.title = _font(disp, z(42))
+        self.h2 = _font(disp, z(31))
+        self.big = _font(disp, z(60))
+        self.num = _font(disp, z(26))
+        self.body = _font(ui, z(17))
+        self.small = _font(ui, z(15))
+        self.mono = _font(mono, z(14))
+        self.tiny = _font(mono, z(12))
+        self.tag = _font(mono, z(12))
+        self.key = _font(mono, z(14))
 
 
 class Ui:
@@ -45,6 +54,31 @@ class Ui:
         self.f = fonts
         self.hot = []
         self._grads = {}
+        self._font_scale = getattr(fonts, "scale", 1.0)
+
+    def px(self, n):
+        """Scale a hand-tuned pixel measurement along with the type."""
+        return max(1, int(round(n * self._font_scale)))
+
+    def wrap(self, text, font, width):
+        words, line, out = text.split(), "", []
+        for word in words:
+            trial = (line + " " + word).strip()
+            if font.size(trial)[0] > width and line:
+                out.append(line)
+                line = word
+            else:
+                line = trial
+        out.append(line)
+        return out
+
+    def ensure_fonts(self, h):
+        """Rebuild the faces when the window height changes enough to matter."""
+        want = round(clamp(h / BASE_H, 0.85, 2.4), 2)
+        if abs(want - self._font_scale) > 0.06:
+            self._font_scale = want
+            self.f = Fonts(want)
+        return self.f
 
     # ---- primitives -----------------------------------------------------
     def begin(self):
@@ -134,11 +168,8 @@ class Ui:
                 self._guide_map(s, g, w, h)
                 self._callout(s, g, w, h)
 
-        keys = ["← →  steer", "J / space  swing", "M  music",
-                "F  graphics", "[ ]  brightness", "Esc  end ride"]
-        for i, k in enumerate(keys):
-            self.text(s, k, self.f.tiny, MUTED, w - 16, h - 18 - (len(keys) - 1 - i) * 14,
-                      "topright")
+        self._keys(s, w, h, [("← →", "Steer"), ("↓", "Brake"),
+                             ("J / Space", "Punch"), ("Esc", "Pause")])
 
         if g.mod["id"] != "none" and not zen:
             chip = self.f.tiny.render(g.mod["name"].upper(), True, SUN)
@@ -183,6 +214,25 @@ class Ui:
             "CLOSING" if closest < 0.25 else "BEHIND")
         col = MUTED if closest is None else (HOT if closest < 0.25 else CREAM)
         self.text(s, label, self.f.tiny, col, rect.centerx, rect.y + 1, "midtop")
+
+    def _keys(self, s, w, h, rows):
+        """Control hints. The old single-line-of-tiny-mono version was the
+        least legible thing on screen."""
+        pad = int(10 * self._font_scale)
+        lh = self.f.key.get_height() + int(5 * self._font_scale)
+        kw = max(self.f.key.size(k)[0] for k, _ in rows)
+        vw = max(self.f.small.size(v)[0] for _, v in rows)
+        box = pygame.Rect(0, 0, kw + vw + pad * 3, lh * len(rows) + pad)
+        box.bottomright = (w - int(14 * self._font_scale), h - int(12 * self._font_scale))
+        pane = pygame.Surface(box.size, pygame.SRCALPHA)
+        pane.fill((12, 6, 24, 170))
+        s.blit(pane, box.topleft)
+        pygame.draw.rect(s, LINE, box, 1, border_radius=4)
+        y = box.y + pad // 2
+        for key, label in rows:
+            self.text(s, key, self.f.key, SUN, box.x + pad + kw, y, "topright")
+            self.text(s, label, self.f.small, CREAM, box.x + pad * 2 + kw, y - 1)
+            y += lh
 
     def _combo(self, s, g, w, h):
         col = HOT if g.combo else MUTED
@@ -292,12 +342,15 @@ class Ui:
         self.text(s, label, self.f.mono, CREAM, w // 2, int(h * 0.26) + 22, "center")
 
     def _pops(self, s, g, w, h):
-        for i, p in enumerate(g.pops):
+        """Newest at the top of the stack, older ones pushed down. They used to
+        share one line and pile on top of each other illegibly."""
+        lh = self.f.h2.get_height() + 4
+        for i, p in enumerate(reversed(g.pops[-5:])):
             a = clamp(p["life"] / p["max"], 0, 1)
-            y = h * 0.55 - (1 - a) * 70
+            y = h * 0.46 + i * lh - (1 - a) * 26
             img = self.f.h2.render(p["text"], True, p["col"])
             img.set_alpha(int(255 * a))
-            s.blit(img, img.get_rect(center=(w / 2 + p["dx"] * w, y)))
+            s.blit(img, img.get_rect(center=(w / 2, y)))
         for p in g.particles:
             a = clamp(p["life"] / p["max"], 0, 1)
             pygame.draw.circle(s, p["col"],
@@ -331,43 +384,69 @@ class Ui:
         self.text(s, "PICK A ROAD, THEN PICK YOUR STAKES", self.f.title, CREAM, cx,
                   int(h * 0.13), "midtop")
 
-        self.text(s, "ROAD", self.f.tag, MUTED, 60, int(h * 0.26))
-        cw = (w - 140) // 4
+        pad, gap = self.px(10), self.px(6)
+        m = self.px(60)
+        lh_t, lh_b = self.f.tiny.get_height() + 2, self.f.body.get_height()
+
+        self.text(s, "ROAD", self.f.tag, MUTED, m, int(h * 0.245))
+        cw = (w - m * 2 - gap * 3) // 4
+        card_h = pad * 2 + lh_b + lh_t * 2
+        y_road = int(h * 0.275)
         for i, lid in enumerate(LOCALE_IDS):
-            r = pygame.Rect(60 + i * (cw + 6), int(h * 0.29), cw, 62)
+            r = pygame.Rect(m + i * (cw + gap), y_road, cw, card_h)
             self.button(s, r, "", ("locale", lid), active=(lid == g.picked_locale))
             loc = LOCALES[lid]
             col = INK if lid == g.picked_locale else CREAM
-            sub = INK if lid == g.picked_locale else MUTED
-            self.text(s, loc["name"], self.f.body, col, r.centerx, r.y + 12, "midtop")
-            words = loc["blurb"].split()
-            half = len(words) // 2
-            self.text(s, " ".join(words[:half]), self.f.tiny, sub, r.centerx, r.y + 32, "midtop")
-            self.text(s, " ".join(words[half:]), self.f.tiny, sub, r.centerx, r.y + 44, "midtop")
+            sub2 = INK if lid == g.picked_locale else MUTED
+            self.text(s, loc["name"], self.f.body, col, r.centerx, r.y + pad, "midtop")
+            for j, line in enumerate(self.wrap(loc["blurb"], self.f.tiny, cw - pad * 2)[:2]):
+                self.text(s, line, self.f.tiny, sub2, r.centerx,
+                          r.y + pad + lh_b + j * lh_t, "midtop")
 
-        self.text(s, "MODE", self.f.tag, MUTED, 60, int(h * 0.43))
+        y_mode = y_road + card_h + self.px(26)
+        self.text(s, "MODE", self.f.tag, MUTED, m, y_mode - self.px(16))
         modes = [("run", "RUN", "One song, one road, one score.", EMBER),
                  ("zen", "ZEN", "No rivals, no timer, no score.", MINT),
                  ("daily", "DAILY", "Today's road, shared board.", SUN)]
-        mw = (w - 140) // 3
+        mw = (w - m * 2 - gap * 2) // 3
+        mode_h = pad * 2 + self.f.h2.get_height() + lh_t * 2
         for i, (mid, name, desc, accent) in enumerate(modes):
-            r = pygame.Rect(60 + i * (mw + 6), int(h * 0.46), mw, 74)
+            r = pygame.Rect(m + i * (mw + gap), y_mode, mw, mode_h)
             self.button(s, r, "", ("mode", mid))
-            self.text(s, name, self.f.h2, accent, r.centerx, r.y + 10, "midtop")
-            self.text(s, desc, self.f.tiny, MUTED, r.centerx, r.y + 44, "midtop")
-            self.text(s, f"PRESS {i + 1}", self.f.tiny, MUTED, r.centerx, r.y + 58, "midtop")
+            self.text(s, name, self.f.h2, accent, r.centerx, r.y + pad // 2, "midtop")
+            self.text(s, desc, self.f.tiny, MUTED, r.centerx,
+                      r.y + pad // 2 + self.f.h2.get_height(), "midtop")
+            self.text(s, f"PRESS {i + 1}", self.f.tiny, MUTED, r.centerx,
+                      r.y + pad // 2 + self.f.h2.get_height() + lh_t, "midtop")
+        self._after_modes = y_mode + mode_h
 
-        self.button(s, pygame.Rect(cx - 90, int(h * 0.73), 180, 30),
+        y = self._after_modes + self.px(18)
+        self.button(s, pygame.Rect(cx - self.px(100), y, self.px(200), self.px(32)),
                     "RECORD ROOM · R", ("screen", "records"))
+        y += self.px(42)
         self.text(s, "Best with sound on — the run is scored to the track.",
-                  self.f.small, MUTED, cx, int(h * 0.80), "midtop")
+                  self.f.small, MUTED, cx, y, "midtop")
+        controls = [("← → or A / D", "Steer"), ("↓ or S", "Brake"),
+                    ("J or Space", "Punch a rival"), ("M", "Sound on / off"),
+                    ("F", "Graphics quality"), ("[  ]", "Brightness"),
+                    ("C", "Reduced motion"), ("P", "Photo"), ("R", "Record room")]
+        colw = (w - self.px(120)) // 3
+        lh = self.f.small.get_height() + self.px(4)
+        y0 = min(int(h * 0.84), h - lh * 3 - self.px(16))
+        for i, (key, label) in enumerate(controls):
+            col, row = i // 3, i % 3
+            x = self.px(60) + col * colw
+            self.text(s, key, self.f.key, SUN, x, y0 + row * lh)
+            self.text(s, label, self.f.small, MUTED, x + int(colw * 0.44), y0 + row * lh)
         self._mute(s, g, w)
 
     def _mute(self, s, g, w):
-        r = pygame.Rect(w - 132, 12, 118, 24)
-        self.button(s, r, "MUSIC OFF" if g.audio.muted else "MUSIC ON", ("mute", None),
+        bw = int(132 * self._font_scale)
+        r = pygame.Rect(w - bw - 14, 12, bw, int(26 * self._font_scale))
+        self.button(s, r, "SOUND OFF" if g.audio.muted else "SOUND ON", ("mute", None),
                     font=self.f.tiny)
-        pygame.draw.circle(s, HOT if g.audio.muted else MINT, (r.x + 10, r.centery), 4)
+        pygame.draw.circle(s, HOT if g.audio.muted else MINT, (r.x + 12, r.centery),
+                           max(3, int(4 * self._font_scale)))
 
     def mods(self, s, g, w, h):
         self.scrim(s, w, h)
@@ -377,25 +456,20 @@ class Ui:
         self.text(s, "Every card is a trade, not an upgrade.",
                   self.f.small, MUTED, cx, int(h * 0.26), "midtop")
         cards = g.mod_choices
-        cw = min(230, (w - 120) // len(cards))
-        total = cw * len(cards) + 8 * (len(cards) - 1)
+        cw = min(self.px(230), (w - self.px(110)) // len(cards))
+        total = cw * len(cards) + self.px(8) * (len(cards) - 1)
         x0 = cx - total // 2
         for i, m in enumerate(cards):
-            r = pygame.Rect(x0 + i * (cw + 8), int(h * 0.33), cw, 132)
+            r = pygame.Rect(x0 + i * (cw + self.px(8)), int(h * 0.33), cw,
+                            self.px(16) + self.f.body.get_height()
+                            + self.f.tiny.get_height() * 5)
             self.button(s, r, "", ("mod", m["id"]))
             accent = MUTED if m["id"] == "none" else SUN
-            self.text(s, m["name"], self.f.body, accent, r.centerx, r.y + 14, "midtop")
-            words, line, lines = m["desc"].split(), "", []
-            for word in words:
-                trial = (line + " " + word).strip()
-                if self.f.tiny.size(trial)[0] > cw - 22:
-                    lines.append(line)
-                    line = word
-                else:
-                    line = trial
-            lines.append(line)
-            for j, ln in enumerate(lines[:5]):
-                self.text(s, ln, self.f.tiny, MUTED, r.centerx, r.y + 42 + j * 15, "midtop")
+            self.text(s, m["name"], self.f.body, accent, r.centerx, r.y + self.px(10), "midtop")
+            lh = self.f.tiny.get_height() + 2
+            for j, ln in enumerate(self.wrap(m["desc"], self.f.tiny, cw - self.px(22))[:5]):
+                self.text(s, ln, self.f.tiny, MUTED, r.centerx,
+                          r.y + self.px(12) + self.f.body.get_height() + j * lh, "midtop")
         self.button(s, pygame.Rect(cx - 50, int(h * 0.72), 100, 30), "BACK",
                     ("screen", "title"))
 
@@ -414,7 +488,10 @@ class Ui:
         for i, (did, name, desc, accent) in enumerate([
                 ("easy", "GUIDED", "Road map and a corner call before every turn.", MINT),
                 ("hard", "BLIND", "No map, no calls. Only what the road shows you.", HOT)]):
-            r = pygame.Rect(cx - 310 + i * 320, int(h * 0.44), 300, 86)
+            cwid = self.px(300)
+            r = pygame.Rect(cx - cwid - self.px(5) + i * (cwid + self.px(10)),
+                            int(h * 0.44), cwid,
+                            self.px(14) + self.f.h2.get_height() + self.f.tiny.get_height() * 3)
             self.button(s, r, "", ("diff", did))
             self.text(s, name, self.f.h2, accent, r.centerx, r.y + 12, "midtop")
             self.text(s, desc, self.f.tiny, MUTED, r.centerx, r.y + 48, "midtop")

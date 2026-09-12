@@ -80,9 +80,9 @@ class Audio:
     def tone(self, kind, freq, dur, gain, f_end=None, music=True):
         if not self.ok or gain <= 0:
             return
-        vol = gain * (self._fade if music else 1.0)
-        if music and self.muted:
+        if self.muted:
             return
+        vol = gain * (self._fade if music else 1.0)
         if vol <= 0.001:
             return
         n = max(64, int(dur * RATE))
@@ -97,9 +97,9 @@ class Audio:
         """`tilt` above 1 brightens (hats), below 1 dulls (snare, thuds)."""
         if not self.ok or gain <= 0:
             return
-        vol = gain * (self._fade if music else 1.0)
-        if music and self.muted:
+        if self.muted:
             return
+        vol = gain * (self._fade if music else 1.0)
         if vol <= 0.001:
             return
         n = max(64, int(dur * RATE))
@@ -218,8 +218,9 @@ class Audio:
                       0.030 + d * 0.022)
 
     # ---- effects --------------------------------------------------------
-    # Deliberately outside the mute: you lose the soundtrack without losing
-    # the feedback that tells you what just happened.
+    # Mute silences these too. Keeping crash and punch sounds alive through a
+    # mute was a nice idea on paper and wrong in practice: pressing mute and
+    # still hearing the game reads as a bug, not a feature.
     def sfx_hit(self):
         self.noise(0.16, 0.50, 0.5, music=False)
         self.tone("square", 180, 0.14, 0.30, f_end=60, music=False)
