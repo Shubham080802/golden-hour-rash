@@ -43,6 +43,7 @@ class Renderer:
         self._stars_surf = None
         self._star_t = 0
         self._fog = {}
+        self._glow_cache = {}
         self.bg_x = 0.0
         self.smooth_slope = 0.0
 
@@ -659,19 +660,27 @@ class Renderer:
                          pygame.Rect(rect.x, rect.y, max(1, int(w * 0.16)), rect.h))
         if w < 10:
             return
-        cols = max(2, int(w // 9))
-        rows = max(3, int(h // (w * 0.42)))
+        # Windows are the most expensive thing on this road: a near block can
+        # want two hundred of them, and there are a hundred blocks in view.
+        # Both colours are hoisted out of the loop (they used to be a shade()
+        # call per window, which came to five thousand a frame) and the grid
+        # is capped — past a dozen columns nobody is counting windows.
+        cols = max(2, min(int(w // 9), 12))
+        rows = max(3, min(int(h // (w * 0.42)), 14))
         gw, gh = rect.w / (cols + 1), rect.h / (rows + 1)
         lit = shade((255, 196, 120), -0.05)
+        dark = shade(body, -0.42)
+        ww, wh = max(1, int(gw * 0.5)), max(1, int(gh * 0.42))
+        phase = int(f * 97)
+        draw_rect = pygame.draw.rect
         for r_i in range(rows):
+            wy = int(rect.y + gh * (r_i + 0.8))
+            base_h = r_i * 7 + phase
             for c_i in range(cols):
                 # a fixed hash, so a given window keeps its state frame to frame
-                on = ((r_i * 7 + c_i * 13 + int(f * 97)) % 11) < 2
-                wx = rect.x + gw * (c_i + 0.7)
-                wy = rect.y + gh * (r_i + 0.8)
-                pygame.draw.rect(surf, lit if on else shade(body, -0.42),
-                                 pygame.Rect(int(wx), int(wy),
-                                             max(1, int(gw * 0.5)), max(1, int(gh * 0.42))))
+                on = ((base_h + c_i * 13) % 11) < 2
+                draw_rect(surf, lit if on else dark,
+                          pygame.Rect(int(rect.x + gw * (c_i + 0.7)), wy, ww, wh))
 
     def _lamp(self, surf, x, y, w, f, col):
         """Sodium streetlight: post, arm, and a cone of light on its own
@@ -690,16 +699,32 @@ class Renderer:
         # top and then the bloom pass gets at it as well, so this wants to be
         # far fainter than it looks like it should be.
         if w > 9:
-            glow = pygame.Surface((max(4, min(int(w * 1.4), 260)),
-                                   max(4, min(int(h * 0.45), 420))), pygame.SRCALPHA)
-            gx, gy = glow.get_width() / 2, 0
-            for i, a in ((3, 7), (2, 5), (1, 4)):
-                pygame.draw.polygon(glow, (255, 186, 104, a), [
-                    (gx - w * 0.07, gy), (gx + w * 0.07, gy),
-                    (gx + w * 0.11 * i, glow.get_height()),
-                    (gx - w * 0.11 * i, glow.get_height())])
+            glow = self._lamp_glow(w, h)
             surf.blit(glow, (int(head[0] - glow.get_width() / 2), int(head[1] + r)),
                       special_flags=pygame.BLEND_RGBA_ADD)
+
+    def _lamp_glow(self, w, h):
+        """The sodium cone, cached by size.
+
+        There can be two dozen lamps in view and this used to allocate a
+        fresh alpha surface for every one of them, every frame. Sizes are
+        bucketed to 8 pixels so a handful of surfaces cover the road.
+        """
+        gw = max(4, min(int(w * 1.4) // 8 * 8, 260))
+        gh = max(4, min(int(h * 0.45) // 8 * 8, 420))
+        key = (gw, gh)
+        glow = self._glow_cache.get(key)
+        if glow is None:
+            glow = pygame.Surface((gw, gh), pygame.SRCALPHA)
+            gx = gw / 2
+            for i, alpha in ((3, 7), (2, 5), (1, 4)):
+                pygame.draw.polygon(glow, (255, 186, 104, alpha), [
+                    (gx - gw * 0.05, 0), (gx + gw * 0.05, 0),
+                    (gx + gw * 0.079 * i, gh), (gx - gw * 0.079 * i, gh)])
+            if len(self._glow_cache) > 48:          # a resize churns these
+                self._glow_cache.clear()
+            self._glow_cache[key] = glow
+        return glow
 
     def _fence(self, surf, x, y, w, f, col):
         """Hoarding and chain-link along the kerb."""

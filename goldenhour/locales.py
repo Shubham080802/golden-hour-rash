@@ -147,7 +147,7 @@ LOCALES = {
         "cloud_hi": hexc("#8A5A3C"), "cloud_lo": hexc("#1A1524"),
         "ridge_far": hexc("#221C30"), "ridge_near": hexc("#120E1C"),
         "hill": hexc("#0E0B16"), "hill2": hexc("#1A1524"),
-        "lanes": True, "rails": True, "bpm": 140, "prop_density": 0.62,
+        "lanes": True, "rails": True, "bpm": 140, "prop_density": 0.48,
         "props": [{"kind": "block", "scale": 3.4, "far": True},
                   {"kind": "block", "scale": 2.6, "far": True},
                   {"kind": "lamp", "scale": 0.62},
