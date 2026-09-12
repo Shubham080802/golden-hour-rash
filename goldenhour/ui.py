@@ -61,6 +61,16 @@ class Ui:
         """Scale a hand-tuned pixel measurement along with the type."""
         return max(1, int(round(n * self._font_scale)))
 
+    def clip(self, text, font, width):
+        """Trim to fit, with an ellipsis, so a long string never runs into
+        whatever sits beside it."""
+        if font.size(text)[0] <= width:
+            return text
+        out = text
+        while out and font.size(out + "…")[0] > width:
+            out = out[:-1]
+        return (out.rstrip() + "…") if out else ""
+
     def wrap(self, text, font, width):
         words, line, out = text.split(), "", []
         for word in words:
@@ -139,26 +149,41 @@ class Ui:
 
     def hud(self, s, g, w, h):
         zen = g.mode == "zen"
-        s.blit(self._gradient(w, 74, False), (0, 0))
-        s.blit(self._gradient(w, 190, True), (0, h - 190))
+        s.blit(self._gradient(w, self.px(74), False), (0, 0))
+        s.blit(self._gradient(w, self.px(190), True), (0, h - self.px(190)))
 
-        self.text(s, "SPEED", self.f.tag, MUTED, 16, 12)
-        self.text(s, str(round(g.speed / U_PER_M * 3.6)), self.f.num, CREAM, 16, 24)
-        self.text(s, "km/h", self.f.tiny, MUTED, 64, 36)
+        # The corners are stacks, not fixed offsets: the readout font grows
+        # with the window and used to run over its own unit label.
+        pad = self.px(16)
+        top = self.px(10)
+        self.text(s, "SPEED", self.f.tag, MUTED, pad, top)
+        ny = top + self.f.tag.get_height() + self.px(1)
+        kmh = str(round(g.speed / U_PER_M * 3.6))
+        self.text(s, kmh, self.f.num, CREAM, pad, ny)
+        self.text(s, "km/h", self.f.tiny, MUTED,
+                  pad + self.f.num.size(kmh)[0] + self.px(6),
+                  ny + self.f.num.get_height() - self.f.tiny.get_height() - self.px(2))
 
-        self.text(s, "SCORE", self.f.tag, MUTED, w - 16, 12, "topright")
-        self.text(s, "—" if zen else f"{int(g.score):,}", self.f.num, SUN, w - 16, 24, "topright")
+        self.text(s, "SCORE", self.f.tag, MUTED, w - pad, top, "topright")
+        self.text(s, "—" if zen else f"{int(g.score):,}", self.f.num, SUN,
+                  w - pad, ny, "topright")
 
-        bar = pygame.Rect(w // 2 - 150, 30, 300, 5)
-        self.text(s, "NOW PLAYING", self.f.tag, MUTED, bar.centerx, 12, "midtop")
+        bar = pygame.Rect(w // 2 - self.px(150),
+                          top + self.f.tag.get_height() + self.px(6),
+                          self.px(300), max(3, self.px(5)))
+        self.text(s, "NOW PLAYING", self.f.tag, MUTED, bar.centerx, top, "midtop")
         pygame.draw.rect(s, (46, 35, 66), bar, border_radius=3)
         pct = ((g.t * 3) % 100) / 100 if zen else clamp(g.t / SONG_LEN, 0, 1)
         pygame.draw.rect(s, SUN, pygame.Rect(bar.x, bar.y, int(bar.w * pct), bar.h),
                          border_radius=3)
         name = "Long Way Home (Pad)" if zen else LOCALES[g.locale]["track"]
-        self.text(s, name, self.f.tiny, MUTED, bar.x, bar.bottom + 5)
-        self.text(s, f"{int(g.t // 60)}:{int(g.t % 60):02d}", self.f.tiny, MUTED,
-                  bar.right, bar.bottom + 5, "topright")
+        clock = f"{int(g.t // 60)}:{int(g.t % 60):02d}"
+        ty = bar.bottom + self.px(4)
+        # The clock owns its end of the bar; the track title gets what is left.
+        cw = self.f.tiny.size(clock)[0]
+        self.text(s, self.clip(name, self.f.tiny, bar.w - cw - self.px(10)),
+                  self.f.tiny, MUTED, bar.x, ty)
+        self.text(s, clock, self.f.tiny, MUTED, bar.right, ty, "topright")
 
         if not zen:
             self._mirror(s, g, w, h)
@@ -184,7 +209,8 @@ class Ui:
         if g.mod["id"] != "none" and not zen:
             chip = self.f.tiny.render(g.mod["name"].upper(), True, SUN)
             box = chip.get_rect(topleft=(self.px(16), self.px(116)))
-            pygame.draw.rect(s, SUN, box.inflate(14, 10), 1, border_radius=3)
+            pygame.draw.rect(s, SUN, box.inflate(self.px(14), self.px(10)), 1,
+                             border_radius=3)
             s.blit(chip, box)
 
         self._pops(s, g, w, h)
@@ -198,11 +224,13 @@ class Ui:
         standings tell you a rival is close, this tells you which shoulder to
         expect them over.
         """
-        rect = pygame.Rect(w // 2 - 118, 58, 236, 48)
+        rect = pygame.Rect(w // 2 - self.px(118), self.px(64), self.px(236), self.px(50))
         self.panel(s, rect, 170)
+        lip = rect.y + self.f.tiny.get_height() + self.px(2)
         pygame.draw.polygon(s, (32, 22, 52), [
-            (rect.centerx - 78, rect.bottom - 3), (rect.centerx + 78, rect.bottom - 3),
-            (rect.centerx + 30, rect.y + 11), (rect.centerx - 30, rect.y + 11)])
+            (rect.centerx - self.px(78), rect.bottom - self.px(3)),
+            (rect.centerx + self.px(78), rect.bottom - self.px(3)),
+            (rect.centerx + self.px(30), lip), (rect.centerx - self.px(30), lip)])
 
         player_pos = g.pos + g.PLAYER_Z
         closest = None
@@ -211,19 +239,19 @@ class Ui:
             if not (-9000 < d < -120):
                 continue
             t = clamp((-d) / 9000.0, 0, 1)         # 0 right behind, 1 far back
-            y = rect.bottom - 6 - t * (rect.height - 20)
-            half = lerp(74, 28, t)
+            y = rect.bottom - self.px(6) - t * (rect.height - self.px(20))
+            half = lerp(self.px(74), self.px(28), t)
             x = rect.centerx + (r.offset - g.player_x) * half * 0.9
-            sz = max(2, int(lerp(8, 3, t)))
+            sz = max(2, int(lerp(self.px(8), self.px(3), t)))
             pygame.draw.circle(s, r.bike, (int(x), int(y)), sz)
             if r.fight > 0:                         # coming for the place back
-                pygame.draw.circle(s, SUN, (int(x), int(y)), sz + 3, 1)
+                pygame.draw.circle(s, SUN, (int(x), int(y)), sz + self.px(3), 1)
             if closest is None or t < closest:
                 closest = t
         label = "CLEAR BEHIND" if closest is None else (
             "CLOSING" if closest < 0.25 else "BEHIND")
         col = MUTED if closest is None else (HOT if closest < 0.25 else CREAM)
-        self.text(s, label, self.f.tiny, col, rect.centerx, rect.y + 1, "midtop")
+        self.text(s, label, self.f.tiny, col, rect.centerx, rect.y + self.px(1), "midtop")
 
     def _keys(self, s, w, h, rows):
         """Control hints. The old single-line-of-tiny-mono version was the
@@ -246,31 +274,43 @@ class Ui:
 
     def _combo(self, s, g, w, h):
         col = HOT if g.combo else MUTED
-        self.text(s, str(g.combo), self.f.big, col, 16, h - 84)
-        self.text(s, f"×{g.mult()}", self.f.body, CREAM if g.combo else MUTED, 78, h - 50)
-        rail = pygame.Rect(16, h - 36, 190, 4)
+        pad = self.px(16)
+        rail = pygame.Rect(pad, h - self.px(36), self.px(190), max(3, self.px(4)))
+        num = str(g.combo)
+        ny = rail.y - self.px(10) - self.f.big.get_height()
+        self.text(s, num, self.f.big, col, pad, ny)
+        self.text(s, f"×{g.mult()}", self.f.body, CREAM if g.combo else MUTED,
+                  pad + self.f.big.size(num)[0] + self.px(8),
+                  rail.y - self.px(10) - self.f.body.get_height())
         pygame.draw.rect(s, (46, 35, 66), rail, border_radius=2)
         pygame.draw.rect(s, HOT, pygame.Rect(rail.x, rail.y,
                                              int(rail.w * clamp(g.combo_t / 4.2, 0, 1)), rail.h),
                          border_radius=2)
+        return ny
 
     def _clean_pip(self, s, g, h):
         label = "CLEAN RUN" if g.clean else "CONTACT MADE"
         col = MINT if g.clean else MUTED
         img = self.f.tiny.render(label, True, col)
-        r = img.get_rect(topleft=(16, h - 112))
-        pygame.draw.rect(s, col, r.inflate(14, 10), 1, border_radius=3)
+        top = h - self.px(46) - self.f.big.get_height() - self.px(12) - img.get_height()
+        r = img.get_rect(topleft=(self.px(16), top))
+        pygame.draw.rect(s, col, r.inflate(self.px(14), self.px(10)), 1, border_radius=3)
         s.blit(img, r)
 
     def _standings(self, s, g, w, h):
         rows = g.pack_order()
         mine = next(i for i, r in enumerate(rows) if r["you"])
-        x, y = 16, int(h * 0.24)
+        colw = self.px(158)
+        rowh = self.f.tiny.get_height() + self.px(5)
+        x = self.px(16)
+        # a ten-strong field needs more room; start high enough to clear the
+        # combo counter at the bottom
+        y = min(int(h * 0.24), h - self.px(150) - rowh * len(rows))
         self.text(s, "PACK", self.f.tag, MUTED, x, y)
-        self.text(s, f"P{mine + 1}/{len(rows)}", self.f.mono, SUN, x + 150, y, "topright")
-        y += 15
+        self.text(s, f"P{mine + 1}/{len(rows)}", self.f.mono, SUN, x + colw, y, "topright")
+        y += self.f.tag.get_height() + self.px(3)
         for i, r in enumerate(rows):
-            rect = pygame.Rect(x, y, 150, 17)
+            rect = pygame.Rect(x, y, colw, rowh)
             if r["you"]:
                 pygame.draw.rect(s, (74, 56, 30), rect, border_radius=3)
             elif r["trouble"]:
@@ -279,13 +319,15 @@ class Ui:
                 pygame.draw.rect(s, (70, 54, 22), rect, border_radius=3)
             else:
                 pygame.draw.rect(s, (24, 15, 42), rect, border_radius=3)
-            self.text(s, str(i + 1), self.f.tiny, MUTED, x + 5, y + 4)
-            pygame.draw.circle(s, r["col"], (x + 22, y + 8), 4)
-            self.text(s, r["name"], self.f.tiny, CREAM if r["you"] else MUTED, x + 32, y + 4)
+            self.text(s, str(i + 1), self.f.tiny, MUTED, x + self.px(5), y + 2)
+            pygame.draw.circle(s, r["col"], (x + self.px(24), rect.centery),
+                               max(3, self.px(4)))
+            self.text(s, r["name"], self.f.tiny, CREAM if r["you"] else MUTED,
+                      x + self.px(34), y + 2)
             gap = round((r["dist"] - g.dist) / U_PER_M)
             self.text(s, "—" if r["you"] else f"{gap:+d}m", self.f.tiny, MUTED,
-                      x + 145, y + 4, "topright")
-            y += 18
+                      x + colw - self.px(5), y + 2, "topright")
+            y += rowh
 
     def _guide_map(self, s, g, w, h):
         """Top-down ribbon of the road ahead, integrated from the same
@@ -367,14 +409,25 @@ class Ui:
                                (int(w / 2 + p["x0"] * w + p["px"]), int(h * 0.78 + p["py"])),
                                max(1, int(p["r"] * a)))
 
+    def toast_rail(self):
+        """Width the achievement toasts reserve down the right-hand edge."""
+        return self.px(250)
+
     def toasts(self, s, g, w):
+        pad = self.px(12)
+        th = self.f.tiny.get_height() * 2 + self.f.body.get_height() + self.px(14)
         for i, t in enumerate(g.toasts):
-            rect = pygame.Rect(w - 250, 80 + i * 58, 234, 50)
+            rect = pygame.Rect(w - self.toast_rail(), self.px(80) + i * (th + self.px(8)),
+                               self.toast_rail() - self.px(16), th)
             self.panel(s, rect, 225)
-            pygame.draw.rect(s, SUN, pygame.Rect(rect.x, rect.y, 3, rect.h))
-            self.text(s, "ACHIEVEMENT", self.f.tiny, SUN, rect.x + 12, rect.y + 7)
-            self.text(s, t["name"], self.f.body, CREAM, rect.x + 12, rect.y + 19)
-            self.text(s, t["desc"], self.f.tiny, MUTED, rect.x + 12, rect.y + 36)
+            pygame.draw.rect(s, SUN, pygame.Rect(rect.x, rect.y, self.px(3), rect.h))
+            ty = rect.y + self.px(6)
+            self.text(s, "ACHIEVEMENT", self.f.tiny, SUN, rect.x + pad, ty)
+            ty += self.f.tiny.get_height() + self.px(2)
+            self.text(s, t["name"], self.f.body, CREAM, rect.x + pad, ty)
+            ty += self.f.body.get_height() + self.px(1)
+            self.text(s, self.clip(t["desc"], self.f.tiny, rect.w - pad * 2),
+                       self.f.tiny, MUTED, rect.x + pad, ty)
 
     def fx_note(self, s, fx, w, h):
         img = self.f.tiny.render(fx.last_note, True, CREAM)
@@ -488,7 +541,8 @@ class Ui:
             for j, ln in enumerate(self.wrap(m["desc"], self.f.tiny, cw - self.px(22))[:5]):
                 self.text(s, ln, self.f.tiny, MUTED, r.centerx,
                           r.y + self.px(12) + self.f.body.get_height() + j * lh, "midtop")
-        self.button(s, pygame.Rect(cx - 50, int(h * 0.72), 100, 30), "BACK",
+        self.button(s, pygame.Rect(cx - self.px(50), int(h * 0.72),
+                                   self.px(100), self.px(30)), "BACK",
                     ("screen", "title"))
 
     def diff(self, s, g, w, h):
@@ -515,7 +569,8 @@ class Ui:
             self.text(s, desc, self.f.tiny, MUTED, r.centerx, r.y + 48, "midtop")
             self.text(s, "PRESS " + ("E" if did == "easy" else "H"), self.f.tiny, MUTED,
                       r.centerx, r.y + 66, "midtop")
-        self.button(s, pygame.Rect(cx - 50, int(h * 0.66), 100, 30), "BACK",
+        self.button(s, pygame.Rect(cx - self.px(50), int(h * 0.66),
+                                   self.px(100), self.px(30)), "BACK",
                     ("screen", "title"))
 
     def pause(self, s, g, w, h):
@@ -525,8 +580,11 @@ class Ui:
         self.text(s, "TAKE YOUR TIME", self.f.title, CREAM, cx, int(h * 0.37), "midtop")
         self.text(s, "Nothing is running down while this is open.", self.f.small, MUTED,
                   cx, int(h * 0.46), "midtop")
-        self.button(s, pygame.Rect(cx - 160, int(h * 0.53), 150, 34), "RESUME", ("resume", None))
-        self.button(s, pygame.Rect(cx + 10, int(h * 0.53), 150, 34), "END RIDE", ("quit", None))
+        bw, bh = self.px(150), self.px(34)
+        self.button(s, pygame.Rect(cx - self.px(160), int(h * 0.53), bw, bh),
+                    "RESUME", ("resume", None))
+        self.button(s, pygame.Rect(cx + self.px(10), int(h * 0.53), bw, bh),
+                    "END RIDE", ("quit", None))
 
     def results(self, s, g, w, h):
         res = g.results
@@ -560,53 +618,87 @@ class Ui:
             else:
                 self.text(s, "TRACK FINISHED", self.f.tag, SUN, cx, y, "midtop")
                 y += 8
-            self.text(s, f"{res['score']:,}", self.f.big, SUN, cx, y + 14, "midtop")
+            sy = y + self.px(14)
+            self.text(s, f"{res['score']:,}", self.f.big, SUN, cx, sy, "midtop")
+            sy += self.f.big.get_height()
             pb = res["pb"]
             self.text(s, "NEW PERSONAL BEST" if pb is None else f"PERSONAL BEST {pb:,}",
-                      self.f.tiny, MINT if pb is None else MUTED, cx, y + 74, "midtop")
+                      self.f.tiny, MINT if pb is None else MUTED, cx, sy, "midtop")
+            sy += self.f.tiny.get_height() + self.px(12)
 
             stats = [("BEST COMBO", g.best_combo), ("HITS", g.hits),
                      ("KNOCKDOWNS", g.knockdowns), ("OVERTAKES", g.overtakes),
                      ("NEAR MISSES", g.near),
                      ("FINISHED", f"{res['pos']}/{res['of']}")]
-            sw = (w - 160) // len(stats)
+            # The whole block below flows: ten riders no longer fit a layout
+            # measured by hand against six.
+            marg = self.px(80)
+            # Leave the toast rail alone on a narrow window rather than let a
+            # pop-up land on the finishing order; cap the width on a wide one,
+            # because a table stretched over 1700 pixels stops reading as rows.
+            room_w = w - marg * 2 - (self.toast_rail() if w < self.px(1180) else 0)
+            tw = min(room_w, self.px(760))
+            marg += (room_w - tw) // 2
+            cols = len(stats) if tw > self.px(660) else 3
+            sw = tw // cols
+            tile_h = self.f.tiny.get_height() + self.f.body.get_height() + self.px(12)
+            ty = sy
             for i, (lab, val) in enumerate(stats):
-                r = pygame.Rect(80 + i * sw, y + 96, sw - 4, 40)
+                r = pygame.Rect(marg + (i % cols) * sw,
+                                ty + (i // cols) * (tile_h + self.px(5)),
+                                sw - self.px(5), tile_h)
                 self.panel(s, r, 150)
-                self.text(s, lab, self.f.tiny, MUTED, r.x + 8, r.y + 6)
-                self.text(s, str(val), self.f.body, SUN if i == 0 else CREAM, r.x + 8, r.y + 20)
+                self.text(s, lab, self.f.tiny, MUTED, r.x + self.px(8), r.y + self.px(5))
+                self.text(s, str(val), self.f.body, SUN if i == 0 else CREAM,
+                          r.x + self.px(8), r.y + self.px(5) + self.f.tiny.get_height())
+            tile_rows = (len(stats) + cols - 1) // cols
+            ty += tile_rows * (tile_h + self.px(5)) + self.px(12)
 
-            ty = y + 146
-            cols = [("POS", 90), ("RIDER", 130), ("GAP", 420), ("INT", 520), ("TOP", 610)]
-            for lab, cxp in cols:
-                self.text(s, lab, self.f.tiny, MUTED, 80 + cxp - 80, ty)
-            ty += 14
+            n_rows = max(1, len(res["rows"]))
+            room = int(h * 0.90) - self.px(18) - ty - self.f.tiny.get_height()
+            rowh = max(self.f.small.get_height() + self.px(2),
+                       min(self.px(22), room // (n_rows + 1)))
+            gap_x = marg + int(tw * 0.60)
+            int_x = marg + int(tw * 0.78)
+            top_x = marg + int(tw * 0.93)
+            for lab, lx, anchor in (("POS", marg + self.px(10), "topleft"),
+                                    ("RIDER", marg + self.px(54), "topleft"),
+                                    ("GAP", gap_x, "topright"),
+                                    ("INT", int_x, "topright"),
+                                    ("TOP", top_x, "topright")):
+                self.text(s, lab, self.f.tiny, MUTED, lx, ty, anchor)
+            ty += self.f.tiny.get_height() + self.px(3)
             for i, r in enumerate(res["rows"]):
-                row = pygame.Rect(80, ty, w - 160, 19)
+                row = pygame.Rect(marg, ty, tw, rowh)
                 if r["you"]:
                     pygame.draw.rect(s, (74, 56, 30), row, border_radius=3)
                 elif r["purple"]:
                     pygame.draw.rect(s, (54, 32, 72), row, border_radius=3)
-                self.text(s, str(i + 1), self.f.mono, CREAM, row.x + 10, ty + 4)
-                pygame.draw.circle(s, r["col"], (row.x + 42, ty + 9), 4)
-                self.text(s, r["name"], self.f.small, CREAM, row.x + 54, ty + 3)
+                self.text(s, str(i + 1), self.f.mono, CREAM, row.x + self.px(10),
+                          ty + self.px(2))
+                pygame.draw.circle(s, r["col"], (row.x + self.px(42), row.centery),
+                                   max(3, self.px(4)))
+                self.text(s, r["name"], self.f.small, CREAM, row.x + self.px(54),
+                          ty + self.px(1))
                 gap = "LEADER" if i == 0 else ("—" if r["gap"] is None else f"+{r['gap']:.3f}")
-                self.text(s, gap, self.f.mono, SUN if i == 0 else CREAM, row.x + 400, ty + 4,
-                          "topright")
+                self.text(s, gap, self.f.mono, SUN if i == 0 else CREAM,
+                          gap_x, ty + self.px(2), "topright")
                 itv = "" if i == 0 else ("—" if r["int"] is None else f"+{r['int']:.3f}")
-                self.text(s, itv, self.f.mono, MUTED, row.x + 500, ty + 4, "topright")
-                self.text(s, str(r["kmh"]), self.f.mono, MUTED, row.x + 580, ty + 4, "topright")
-                ty += 20
+                self.text(s, itv, self.f.mono, MUTED, int_x, ty + self.px(2), "topright")
+                self.text(s, str(r["kmh"]), self.f.mono, MUTED, top_x, ty + self.px(2),
+                          "topright")
+                ty += rowh
             fast = next((r for r in res["rows"] if r["purple"]), None)
             if fast and fast["fkm"]:
                 self.text(s, f"Fastest kilometre {fast['fkm']:.2f}s · "
                              f"{'you' if fast['you'] else fast['name'].lower()}",
-                          self.f.tiny, (200, 139, 240), 80, ty + 6)
+                          self.f.tiny, (200, 139, 240), marg, ty + self.px(4))
 
-        self.button(s, pygame.Rect(cx - 160, int(h * 0.90), 150, 32), "RIDE AGAIN",
-                    ("again", None))
-        self.button(s, pygame.Rect(cx + 10, int(h * 0.90), 150, 32), "CHANGE MODE",
-                    ("screen", "title"))
+        bw, bh = self.px(150), self.px(32)
+        self.button(s, pygame.Rect(cx - self.px(160), int(h * 0.90), bw, bh),
+                    "RIDE AGAIN", ("again", None))
+        self.button(s, pygame.Rect(cx + self.px(10), int(h * 0.90), bw, bh),
+                    "CHANGE MODE", ("screen", "title"))
         self.toasts(s, g, w)
 
     def records(self, s, g, w, h):
@@ -615,7 +707,8 @@ class Ui:
         self.text(s, "RECORD ROOM", self.f.tag, SUN, cx, int(h * 0.06), "midtop")
         for i, (tid, lab) in enumerate([("times", "TIMINGS & RECORDS"),
                                         ("ach", "ACHIEVEMENTS")]):
-            self.button(s, pygame.Rect(cx - 160 + i * 165, int(h * 0.11), 155, 26), lab,
+            self.button(s, pygame.Rect(cx - self.px(160) + i * self.px(165),
+                                       int(h * 0.11), self.px(155), self.px(26)), lab,
                         ("rectab", tid), active=(g.rec_tab == tid), font=self.f.tiny)
 
         if g.rec_tab == "ach":
@@ -623,28 +716,37 @@ class Ui:
             races = g.data["achievements"]["tally"].get("races", 0)
             self.text(s, f"{won} of {total} earned · {races} races finished",
                       self.f.mono, MUTED, cx, int(h * 0.17), "midtop")
-            gw = (w - 160) // 3
+            gw = (w - self.px(160)) // 3
+            # Two lines for the description: several of them do not fit one.
+            ah = (self.f.small.get_height() + self.f.tiny.get_height() * 2
+                  + self.px(20))
             for i, (ident, name, desc, _t) in enumerate(ACHIEVEMENTS):
                 col_i, row_i = i % 3, i // 3
-                r = pygame.Rect(80 + col_i * gw, int(h * 0.21) + row_i * 52, gw - 6, 46)
+                r = pygame.Rect(self.px(80) + col_i * gw,
+                                int(h * 0.21) + row_i * (ah + self.px(6)), gw - self.px(6), ah)
                 got = ident in g.data["achievements"]["won"]
                 self.panel(s, r, 200 if got else 90)
                 if got:
                     pygame.draw.rect(s, SUN, r, 1, border_radius=5)
-                self.text(s, name, self.f.small, SUN if got else MUTED, r.x + 9, r.y + 7)
-                self.text(s, desc, self.f.tiny, MUTED if got else (90, 80, 108),
-                          r.x + 9, r.y + 26)
+                self.text(s, name, self.f.small, SUN if got else MUTED,
+                          r.x + self.px(9), r.y + self.px(6))
+                dy = r.y + self.px(8) + self.f.small.get_height()
+                for line in self.wrap(desc, self.f.tiny, r.w - self.px(18))[:2]:
+                    self.text(s, line, self.f.tiny, MUTED if got else (90, 80, 108),
+                              r.x + self.px(9), dy)
+                    dy += self.f.tiny.get_height()
         else:
             self.text(s, LOCALES[g.rec_road]["name"], self.f.h2, CREAM, cx, int(h * 0.16),
                       "midtop")
-            bw = 140
+            bw = self.px(140)
             for i, lid in enumerate(LOCALE_IDS):
-                self.button(s, pygame.Rect(cx - (bw * 2 + 9) + i * (bw + 6), int(h * 0.24),
-                                           bw, 24),
+                self.button(s, pygame.Rect(cx - (bw * 2 + self.px(9)) + i * (bw + self.px(6)),
+                                           int(h * 0.24), bw, self.px(24)),
                             LOCALES[lid]["name"], ("recroad", lid),
                             active=(lid == g.rec_road), font=self.f.tiny)
             for i, (mid, lab) in enumerate(REC_MODES):
-                self.button(s, pygame.Rect(cx - 230 + i * 155, int(h * 0.30), 150, 24), lab,
+                self.button(s, pygame.Rect(cx - self.px(230) + i * self.px(155),
+                                           int(h * 0.30), self.px(150), self.px(24)), lab,
                             ("recmode", mid), active=(mid == g.rec_mode), font=self.f.tiny)
 
             parts = g.rec_mode.split(":")
@@ -681,6 +783,7 @@ class Ui:
                     self.text(s, when, self.f.tiny, MUTED, x + cw - 6, y + 4, "topright")
                     y += 20
 
-        self.button(s, pygame.Rect(cx - 50, int(h * 0.90), 100, 30), "BACK",
+        self.button(s, pygame.Rect(cx - self.px(50), int(h * 0.90),
+                                   self.px(100), self.px(30)), "BACK",
                     ("screen", "title"))
         self._mute(s, g, w)
