@@ -129,6 +129,21 @@ class Ui:
         self.hot.append((rect, action))
         return rect
 
+    def head(self, s, cx, y, tag, title, sub=None, tag_col=None):
+        """Screen header as a stack, measured off the fonts.
+
+        Every one of these used to be three hand-picked heights. They held at
+        640 and collided the moment the type scaled past them.
+        """
+        self.text(s, tag, self.f.tag, tag_col or SUN, cx, y, "midtop")
+        y += self.f.tag.get_height() + self.px(2)
+        self.text(s, title, self.f.title, CREAM, cx, y, "midtop")
+        y += self.f.title.get_height() + self.px(6)
+        if sub:
+            self.text(s, sub, self.f.small, MUTED, cx, y, "midtop")
+            y += self.f.small.get_height() + self.px(6)
+        return y
+
     def scrim(self, s, w, h):
         veil = pygame.Surface((w, h), pygame.SRCALPHA)
         veil.fill((12, 6, 24, 178))
@@ -449,7 +464,9 @@ class Ui:
         else:
             return
         self.text(s, arrows, self.f.h2, col, w // 2, int(h * 0.26), "center")
-        self.text(s, label, self.f.mono, CREAM, w // 2, int(h * 0.26) + 22, "center")
+        self.text(s, label, self.f.mono, CREAM, w // 2,
+                  int(h * 0.26) + self.f.h2.get_height() // 2
+                  + self.f.mono.get_height() // 2 + self.px(4), "center")
 
     def _pops(self, s, g, w, h):
         """Newest at the top of the stack, older ones pushed down. They used to
@@ -501,18 +518,17 @@ class Ui:
     def title(self, s, g, w, h):
         self.scrim(s, w, h)
         cx = w // 2
-        self.text(s, "GOLDEN HOUR RASH", self.f.tag, SUN, cx, int(h * 0.10), "midtop")
-        self.text(s, "PICK A ROAD, THEN PICK YOUR STAKES", self.f.title, CREAM, cx,
-                  int(h * 0.13), "midtop")
-
         pad, gap = self.px(10), self.px(6)
         m = self.px(60)
         lh_t, lh_b = self.f.tiny.get_height() + 2, self.f.body.get_height()
 
-        self.text(s, "ROAD", self.f.tag, MUTED, m, int(h * 0.245))
+        y = self.head(s, cx, int(h * 0.09), "GOLDEN HOUR RASH",
+                      "PICK A ROAD, THEN PICK YOUR STAKES")
+        y += self.px(8)
+        self.text(s, "ROAD", self.f.tag, MUTED, m, y)
         cw = (w - m * 2 - gap * 3) // 4
         card_h = pad * 2 + lh_b + lh_t * 2
-        y_road = int(h * 0.275)
+        y_road = y + self.f.tag.get_height() + self.px(3)
         for i, lid in enumerate(LOCALE_IDS):
             r = pygame.Rect(m + i * (cw + gap), y_road, cw, card_h)
             self.button(s, r, "", ("locale", lid), active=(lid == g.picked_locale))
@@ -524,8 +540,9 @@ class Ui:
                 self.text(s, line, self.f.tiny, sub2, r.centerx,
                           r.y + pad + lh_b + j * lh_t, "midtop")
 
-        y_mode = y_road + card_h + self.px(26)
-        self.text(s, "MODE", self.f.tag, MUTED, m, y_mode - self.px(16))
+        y_mode = y_road + card_h + self.f.tag.get_height() + self.px(12)
+        self.text(s, "MODE", self.f.tag, MUTED, m,
+                  y_mode - self.f.tag.get_height() - self.px(3))
         done = len(story.progress(g.data)["done"])
         modes = [("run", "RUN", "One song, one road, one score.", EMBER),
                  ("zen", "ZEN", "No rivals, no timer, no score.", MINT),
@@ -583,16 +600,16 @@ class Ui:
     def mods(self, s, g, w, h):
         self.scrim(s, w, h)
         cx = w // 2
-        self.text(s, "BEFORE YOU RIDE", self.f.tag, SUN, cx, int(h * 0.13), "midtop")
-        self.text(s, "TAKE ONE", self.f.title, CREAM, cx, int(h * 0.16), "midtop")
-        self.text(s, "Every card is a trade, not an upgrade.",
-                  self.f.small, MUTED, cx, int(h * 0.26), "midtop")
+        top = self.head(s, cx, int(h * 0.12), "BEFORE YOU RIDE", "TAKE ONE",
+                        "Every card is a trade, not an upgrade.")
         cards = g.mod_choices
+        cardh = (self.px(16) + self.f.body.get_height()
+                 + self.f.tiny.get_height() * 5)
         cw = min(self.px(230), (w - self.px(110)) // len(cards))
         total = cw * len(cards) + self.px(8) * (len(cards) - 1)
         x0 = cx - total // 2
         for i, m in enumerate(cards):
-            r = pygame.Rect(x0 + i * (cw + self.px(8)), int(h * 0.33), cw,
+            r = pygame.Rect(x0 + i * (cw + self.px(8)), top + self.px(12), cw,
                             self.px(16) + self.f.body.get_height()
                             + self.f.tiny.get_height() * 5)
             self.button(s, r, "", ("mod", m["id"]))
@@ -602,7 +619,9 @@ class Ui:
             for j, ln in enumerate(self.wrap(m["desc"], self.f.tiny, cw - self.px(22))[:5]):
                 self.text(s, ln, self.f.tiny, MUTED, r.centerx,
                           r.y + self.px(12) + self.f.body.get_height() + j * lh, "midtop")
-        self.button(s, pygame.Rect(cx - self.px(50), int(h * 0.72),
+        self.button(s, pygame.Rect(cx - self.px(50),
+                                   max(int(h * 0.72), top + self.px(12) + cardh
+                                       + self.px(16)),
                                    self.px(100), self.px(30)), "BACK",
                     ("screen", "title"))
 
@@ -610,41 +629,49 @@ class Ui:
         self.scrim(s, w, h)
         cx = w // 2
         loc = LOCALES[daily_locale()]
-        self.text(s, f"DAILY · {datetime.date.today().isoformat()} · {loc['name']}",
-                  self.f.tag, SUN, cx, int(h * 0.18), "midtop")
-        self.text(s, "SAME ROAD, TWO WAYS TO READ IT", self.f.title, CREAM, cx,
-                  int(h * 0.22), "midtop")
-        self.text(s, "Guided and Blind keep separate boards, so you are only measured",
-                  self.f.small, MUTED, cx, int(h * 0.32), "midtop")
+        y = self.head(s, cx, int(h * 0.18),
+                      f"DAILY · {datetime.date.today().isoformat()} · {loc['name']}",
+                      "SAME ROAD, TWO WAYS TO READ IT",
+                      "Guided and Blind keep separate boards, so you are only measured")
         self.text(s, "against riders who had the same information you did.",
-                  self.f.small, MUTED, cx, int(h * 0.35), "midtop")
+                  self.f.small, MUTED, cx, y, "midtop")
+        y += self.f.small.get_height() + self.px(14)
         for i, (did, name, desc, accent) in enumerate([
                 ("easy", "GUIDED", "Road map and a corner call before every turn.", MINT),
                 ("hard", "BLIND", "No map, no calls. Only what the road shows you.", HOT)]):
-            cwid = self.px(300)
+            # the card has to fit the window, and the blurb has to fit the
+            # card: at 900 wide these two used to write over each other
+            cwid = min(self.px(300), (w - self.px(50)) // 2 - self.px(5))
+            lines = self.wrap(desc, self.f.tiny, cwid - self.px(20))[:2]
             r = pygame.Rect(cx - cwid - self.px(5) + i * (cwid + self.px(10)),
-                            int(h * 0.44), cwid,
-                            self.px(14) + self.f.h2.get_height() + self.f.tiny.get_height() * 3)
+                            y, cwid,
+                            self.px(20) + self.f.h2.get_height()
+                            + self.f.tiny.get_height() * (len(lines) + 1))
             self.button(s, r, "", ("diff", did))
-            self.text(s, name, self.f.h2, accent, r.centerx, r.y + 12, "midtop")
-            self.text(s, desc, self.f.tiny, MUTED, r.centerx, r.y + 48, "midtop")
+            ry = r.y + self.px(8)
+            self.text(s, name, self.f.h2, accent, r.centerx, ry, "midtop")
+            ry += self.f.h2.get_height() + self.px(2)
+            for ln in lines:
+                self.text(s, ln, self.f.tiny, MUTED, r.centerx, ry, "midtop")
+                ry += self.f.tiny.get_height()
             self.text(s, "PRESS " + ("E" if did == "easy" else "H"), self.f.tiny, MUTED,
-                      r.centerx, r.y + 66, "midtop")
-        self.button(s, pygame.Rect(cx - self.px(50), int(h * 0.66),
+                      r.centerx, ry, "midtop")
+            card_bottom = r.bottom
+        self.button(s, pygame.Rect(cx - self.px(50),
+                                   max(int(h * 0.66), card_bottom + self.px(16)),
                                    self.px(100), self.px(30)), "BACK",
                     ("screen", "title"))
 
     def pause(self, s, g, w, h):
         self.scrim(s, w, h)
         cx = w // 2
-        self.text(s, "PAUSED", self.f.tag, SUN, cx, int(h * 0.34), "midtop")
-        self.text(s, "TAKE YOUR TIME", self.f.title, CREAM, cx, int(h * 0.37), "midtop")
-        self.text(s, "Nothing is running down while this is open.", self.f.small, MUTED,
-                  cx, int(h * 0.46), "midtop")
+        y = self.head(s, cx, int(h * 0.33), "PAUSED", "TAKE YOUR TIME",
+                      "Nothing is running down while this is open.")
         bw, bh = self.px(150), self.px(34)
-        self.button(s, pygame.Rect(cx - self.px(160), int(h * 0.53), bw, bh),
+        y += self.px(10)
+        self.button(s, pygame.Rect(cx - self.px(160), y, bw, bh),
                     "RESUME", ("resume", None))
-        self.button(s, pygame.Rect(cx + self.px(10), int(h * 0.53), bw, bh),
+        self.button(s, pygame.Rect(cx + self.px(10), y, bw, bh),
                     "END RIDE", ("quit", None))
 
     def results(self, s, g, w, h):
@@ -655,10 +682,13 @@ class Ui:
         cx = w // 2
         y = int(h * 0.06)
         if res["zen"]:
+            y = int(h * 0.10)
             self.text(s, "RIDE ENDED", self.f.tag, SUN, cx, y, "midtop")
-            self.text(s, f"{res['dist_km']:.1f} km", self.f.big, MINT, cx, y + 18, "midtop")
+            y += self.f.tag.get_height() + self.px(4)
+            self.text(s, f"{res['dist_km']:.1f} km", self.f.big, MINT, cx, y, "midtop")
+            y += self.f.big.get_height() + self.px(8)
             self.text(s, "No score in Zen. That is the point.", self.f.small, MUTED,
-                      cx, y + 86, "midtop")
+                      cx, y, "midtop")
         else:
             if res["perfect"]:
                 self.text(s, "PERFECT RUN", self.f.h2, MINT, cx, y, "midtop")
@@ -844,16 +874,14 @@ class Ui:
         cx = w // 2
         prog = story.progress(g.data)
         open_to = story.unlocked(g.data)
-        self.text(s, "STORY", self.f.tag, (200, 139, 240), cx, int(h * 0.05), "midtop")
-        self.text(s, "THE LONG WAY TO SUNRISE", self.f.title, CREAM, cx,
-                  int(h * 0.08), "midtop")
-        self.text(s, "Five legs, one night, one sunrise at the end of it.",
-                  self.f.small, MUTED, cx, int(h * 0.145), "midtop")
+        top = self.head(s, cx, int(h * 0.05), "STORY", "THE LONG WAY TO SUNRISE",
+                        "Five legs, one night, one sunrise at the end of it.",
+                        tag_col=(200, 139, 240))
 
         m = self.px(70)
         row_h = (self.f.body.get_height() + self.f.tiny.get_height() * 2
                  + self.px(16))
-        y = int(h * 0.20)
+        y = top + self.px(8)
         for i, ch in enumerate(story.CHAPTERS):
             ridden = ch["id"] in prog["done"]
             locked = i > open_to
@@ -952,18 +980,23 @@ class Ui:
     def records(self, s, g, w, h):
         self.scrim(s, w, h)
         cx = w // 2
-        self.text(s, "RECORD ROOM", self.f.tag, SUN, cx, int(h * 0.06), "midtop")
+        y = int(h * 0.05)
+        self.text(s, "RECORD ROOM", self.f.tag, SUN, cx, y, "midtop")
+        y += self.f.tag.get_height() + self.px(5)
+        tabh = self.f.tiny.get_height() + self.px(12)
         for i, (tid, lab) in enumerate([("times", "TIMINGS & RECORDS"),
                                         ("ach", "ACHIEVEMENTS")]):
             self.button(s, pygame.Rect(cx - self.px(160) + i * self.px(165),
-                                       int(h * 0.11), self.px(155), self.px(26)), lab,
+                                       y, self.px(155), tabh), lab,
                         ("rectab", tid), active=(g.rec_tab == tid), font=self.f.tiny)
+        y += tabh + self.px(12)
 
         if g.rec_tab == "ach":
             won, total = progress(g.data)
             races = g.data["achievements"]["tally"].get("races", 0)
             self.text(s, f"{won} of {total} earned · {races} races finished",
-                      self.f.mono, MUTED, cx, int(h * 0.17), "midtop")
+                      self.f.mono, MUTED, cx, y, "midtop")
+            y += self.f.mono.get_height() + self.px(8)
             gw = (w - self.px(160)) // 3
             # Two lines for the description: several of them do not fit one.
             ah = (self.f.small.get_height() + self.f.tiny.get_height() * 2
@@ -971,7 +1004,7 @@ class Ui:
             for i, (ident, name, desc, _t) in enumerate(ACHIEVEMENTS):
                 col_i, row_i = i % 3, i // 3
                 r = pygame.Rect(self.px(80) + col_i * gw,
-                                int(h * 0.21) + row_i * (ah + self.px(6)), gw - self.px(6), ah)
+                                y + row_i * (ah + self.px(6)), gw - self.px(6), ah)
                 got = ident in g.data["achievements"]["won"]
                 self.panel(s, r, 200 if got else 90)
                 if got:
@@ -984,18 +1017,21 @@ class Ui:
                               r.x + self.px(9), dy)
                     dy += self.f.tiny.get_height()
         else:
-            self.text(s, LOCALES[g.rec_road]["name"], self.f.h2, CREAM, cx, int(h * 0.16),
-                      "midtop")
+            self.text(s, LOCALES[g.rec_road]["name"], self.f.h2, CREAM, cx, y, "midtop")
+            y += self.f.h2.get_height() + self.px(8)
             bw = self.px(140)
+            fh = self.f.tiny.get_height() + self.px(10)
             for i, lid in enumerate(LOCALE_IDS):
                 self.button(s, pygame.Rect(cx - (bw * 2 + self.px(9)) + i * (bw + self.px(6)),
-                                           int(h * 0.24), bw, self.px(24)),
+                                           y, bw, fh),
                             LOCALES[lid]["name"], ("recroad", lid),
                             active=(lid == g.rec_road), font=self.f.tiny)
+            y += fh + self.px(6)
             for i, (mid, lab) in enumerate(REC_MODES):
                 self.button(s, pygame.Rect(cx - self.px(230) + i * self.px(155),
-                                           int(h * 0.30), self.px(150), self.px(24)), lab,
+                                           y, self.px(150), fh), lab,
                             ("recmode", mid), active=(mid == g.rec_mode), font=self.f.tiny)
+            y += fh + self.px(10)
 
             parts = g.rec_mode.split(":")
             f = store.get_records(g.data, parts[0], g.rec_road,
@@ -1004,32 +1040,43 @@ class Ui:
             self.text(s, f"Races {f.get('runs', 0)}   ·   Best finish "
                          f"{bp if bp and bp < 99 else '—'}   ·   Best combo "
                          f"{f.get('best_combo', 0)}",
-                      self.f.mono, MUTED, cx, int(h * 0.36), "midtop")
+                      self.f.mono, MUTED, cx, y, "midtop")
+            y += self.f.mono.get_height() + self.px(14)
+            table_top = y
 
             for ci, (title, rows, fmt) in enumerate([
                     ("TOP SCORES", f.get("scores", []),
                      lambda e: (f"{e['score']:,}", f"×{e['combo']} · P{e['pos']}")),
                     ("FASTEST KILOMETRE", f.get("splits", []),
                      lambda e: (f"{e['fkm']:.2f}s", f"{e.get('kmh', 0)} km/h · P{e['pos']}"))]):
-                x = 80 + ci * ((w - 160) // 2 + 8)
-                cw = (w - 176) // 2
-                y = int(h * 0.42)
+                marg = self.px(80)
+                cw = (w - marg * 2 - self.px(16)) // 2
+                x = marg + ci * (cw + self.px(16))
+                y = table_top
                 self.text(s, title, self.f.tiny, MUTED, x, y)
-                pygame.draw.line(s, LINE, (x, y + 14), (x + cw, y + 14))
-                y += 20
+                y += self.f.tiny.get_height() + self.px(3)
+                pygame.draw.line(s, LINE, (x, y), (x + cw, y))
+                y += self.px(6)
+                rowh = self.f.mono.get_height() + self.px(5)
                 if not rows:
-                    self.text(s, "Nothing recorded here yet.", self.f.small, MUTED, x, y + 4)
+                    self.text(s, "Nothing recorded here yet.", self.f.small, MUTED, x, y)
                 for i, e in enumerate(rows):
-                    row = pygame.Rect(x, y, cw, 19)
+                    row = pygame.Rect(x, y, cw, rowh)
                     if i == 0:
                         pygame.draw.rect(s, (74, 56, 30), row, border_radius=3)
                     val, meta = fmt(e)
-                    self.text(s, str(i + 1), self.f.tiny, MUTED, x + 6, y + 4)
-                    self.text(s, val, self.f.mono, SUN, x + 26, y + 4)
-                    self.text(s, meta, self.f.tiny, MUTED, x + cw - 96, y + 4)
+                    self.text(s, str(i + 1), self.f.tiny, MUTED, x + self.px(6),
+                              y + self.px(2))
+                    self.text(s, val, self.f.mono, SUN, x + self.px(26), y + self.px(1))
                     when = datetime.datetime.fromtimestamp(e["ts"]).strftime("%d %b")
-                    self.text(s, when, self.f.tiny, MUTED, x + cw - 6, y + 4, "topright")
-                    y += 20
+                    wdt = self.f.tiny.size(when)[0]
+                    self.text(s, when, self.f.tiny, MUTED, x + cw - self.px(6),
+                              y + self.px(2), "topright")
+                    self.text(s, self.clip(meta, self.f.tiny,
+                                           cw - self.px(34) - wdt - self.px(70)),
+                              self.f.tiny, MUTED,
+                              x + cw - self.px(12) - wdt, y + self.px(2), "topright")
+                    y += rowh
 
         self.button(s, pygame.Rect(cx - self.px(50), int(h * 0.90),
                                    self.px(100), self.px(30)), "BACK",
