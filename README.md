@@ -17,6 +17,7 @@ M             sound on / off (music and effects)
 F             graphics quality
 C             reduced motion on / off
 P             photo mode — writes a PNG with no interface
+D             difficulty (title screen)
 R             record room (title screen)
 1 / 2 / 3     Run / Zen / Daily
 ```
@@ -66,6 +67,30 @@ Each locale owns its palette, road surface, scenery, terrain profile and music.
 
 Zen keeps the road's key so it still sounds like that place, but drops the kit
 for root, fifth and a long pad at 76 bpm.
+
+## Difficulty
+
+**D** on the title screen cycles the field. It lifts the rivals' cornering
+skill, nerve and appetite for a fight together, so a harder race is a field of
+better riders rather than a field with more horsepower — and a landed punch
+sets a better rider back less, otherwise the race is decided by the first two
+hits.
+
+Measured over twenty races per level, every level racing the same roads and
+seeds:
+
+| | win | podium | mean finish |
+|---|---|---|---|
+| **Steady** | 50% | 80% | 1.9 |
+| **Racer** (default) | 35% | 75% | 2.4 |
+| **Ruthless** | 25% | 60% | 3.0 |
+
+Those are a bot's numbers, and it reads corners with no reaction time while
+never dodging traffic — treat them as the shape of the ladder, not as your
+own odds.
+
+Daily always runs at **Racer** whatever your setting is. A shared board cannot
+mean anything if the field is softer for some players than others.
 
 ## The pack
 

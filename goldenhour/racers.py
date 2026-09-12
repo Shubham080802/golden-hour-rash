@@ -100,17 +100,19 @@ class Rider:
 
     kind = "rider"
 
-    def __init__(self, spec, index, rng, track, player_pos, ai_bump):
+    def __init__(self, spec, index, rng, track, player_pos, ai_bump, edge=1.0):
         def jitter():
             return rng() * 2 - 1
 
         self.name = spec["name"]
         self.bike = hexc(spec["bike"])
         self.suit = hexc(spec["suit"])
-        self.skill = clamp(spec["skill"] + ai_bump + jitter() * 0.07, 0.30, 0.97)
-        self.nerve = clamp(spec["nerve"] + jitter() * 0.07, 0.35, 1.00)
-        self.look = spec["look"] * (1 + jitter() * 0.15)
-        self.aggro = clamp(spec["aggro"] + jitter() * 0.10, 0.15, 1.00)
+        lift = edge - 1.0
+        self.skill = clamp(spec["skill"] + ai_bump + jitter() * 0.07 + lift * 0.55,
+                           0.30, 0.99)
+        self.nerve = clamp(spec["nerve"] + jitter() * 0.07 + lift * 0.45, 0.35, 1.06)
+        self.look = spec["look"] * (1 + jitter() * 0.15) * (1 + lift * 0.5)
+        self.aggro = clamp(spec["aggro"] + jitter() * 0.10 + lift * 0.6, 0.15, 1.00)
         self.line = spec["line"] + jitter() * 0.10
 
         lead = 3400 + index * 2400
@@ -158,16 +160,16 @@ class Rider:
             self.fight -= dt
         nerve_now = min(1.05, self.nerve + (0.30 if self.fight > 0 else 0.0))
         far = 0.0
-        target = MAX_SPEED * (0.70 + nerve_now * 0.30)
+        target = MAX_SPEED * (0.73 + nerve_now * 0.30)
 
         drafting = -5200 < d < 0 and abs(self.offset - game.player_x) < 0.60
         if drafting:
             target *= 1.10
 
         if d > 16000:
-            target = min(target, max(MAX_SPEED * 0.55, game.speed * 0.92))
-        elif d < -9000:
-            far = clamp((-d - 9000) / 36000, 0, 1)
+            target = min(target, max(MAX_SPEED * 0.55, game.speed * 0.96))
+        elif d < -7000:
+            far = clamp((-d - 7000) / 30000, 0, 1)
             ceil = MAX_SPEED * (1.06 + far * 0.34)
             target = max(target, min(ceil, game.speed * (1.12 + far * 0.44) + 500))
 

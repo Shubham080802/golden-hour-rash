@@ -43,6 +43,33 @@ PTS = {
     "perfect": 2500,
 }
 
+# ---- difficulty -----------------------------------------------------------
+# The edge value is how much better than their baseline the rivals ride: it
+# lifts
+# cornering skill, nerve and appetite for a fight together, so a harder race
+# is a field of better riders rather than a field with more horsepower.
+DIFFICULTIES = [
+    ("steady",   "Steady",   1.00),
+    ("racer",    "Racer",    1.16),
+    ("ruthless", "Ruthless", 1.32),
+]
+DEFAULT_DIFFICULTY = "racer"
+
+
+def difficulty_edge(ident):
+    for key, _name, edge in DIFFICULTIES:
+        if key == ident:
+            return edge
+    return 1.0
+
+
+def difficulty_name(ident):
+    for key, name, _edge in DIFFICULTIES:
+        if key == ident:
+            return name
+    return "Racer"
+
+
 # ---- window ---------------------------------------------------------------
 WIN_W, WIN_H = 1000, 640
 FPS = 60

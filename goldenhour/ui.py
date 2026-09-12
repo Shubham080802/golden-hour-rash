@@ -11,6 +11,7 @@ import pygame
 
 from .achievements import ACHIEVEMENTS, progress
 from .config import (CREAM, EMBER, HOT, INK, LINE, MINT, MUTED, PTS, SONG_LEN,
+                     difficulty_name,
                      SUN, U_PER_M, clamp, lerp)
 from .game import daily_locale
 from .locales import LOCALE_IDS, LOCALES
@@ -171,9 +172,17 @@ class Ui:
         self._keys(s, w, h, [("← →", "Steer"), ("↓", "Brake"),
                              ("J / Space", "Punch"), ("Esc", "Pause")])
 
+        if not zen:
+            lab = self.f.tiny.render(difficulty_name(g.race_difficulty).upper(),
+                                     True, MUTED)
+            lb = lab.get_rect(topleft=(self.px(16), self.px(86)))
+            pygame.draw.rect(s, LINE, lb.inflate(self.px(14), self.px(10)), 1,
+                             border_radius=3)
+            s.blit(lab, lb)
+
         if g.mod["id"] != "none" and not zen:
             chip = self.f.tiny.render(g.mod["name"].upper(), True, SUN)
-            box = chip.get_rect(topleft=(16, 60))
+            box = chip.get_rect(topleft=(self.px(16), self.px(116)))
             pygame.draw.rect(s, SUN, box.inflate(14, 10), 1, border_radius=3)
             s.blit(chip, box)
 
@@ -438,13 +447,18 @@ class Ui:
             x = self.px(60) + col * colw
             self.text(s, key, self.f.key, SUN, x, y0 + row * lh)
             self.text(s, label, self.f.small, MUTED, x + int(colw * 0.44), y0 + row * lh)
-        self._mute(s, g, w)
+        self._mute(s, g, w, with_difficulty=True)
 
-    def _mute(self, s, g, w):
-        bw = int(132 * self._font_scale)
-        r = pygame.Rect(w - bw - 14, 12, bw, int(26 * self._font_scale))
+    def _mute(self, s, g, w, with_difficulty=False):
+        bw = self.px(132)
+        bh = self.px(26)
+        r = pygame.Rect(w - bw - self.px(14), self.px(12), bw, bh)
         self.button(s, r, "SOUND OFF" if g.audio.muted else "SOUND ON", ("mute", None),
                     font=self.f.tiny)
+        if with_difficulty:
+            d = pygame.Rect(r.x - bw - self.px(8), r.y, bw, bh)
+            self.button(s, d, difficulty_name(g.difficulty).upper() + " · D",
+                        ("difficulty", None), font=self.f.tiny)
         pygame.draw.circle(s, HOT if g.audio.muted else MINT, (r.x + 12, r.centery),
                            max(3, int(4 * self._font_scale)))
 

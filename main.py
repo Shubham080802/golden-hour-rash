@@ -47,6 +47,9 @@ def dispatch(g, action):
             g.screen = val
         if val == "records":
             g.rec_road = g.picked_locale
+    elif kind == "difficulty":
+        from goldenhour.config import difficulty_name
+        g.postfx.note("Field: " + difficulty_name(g.cycle_difficulty()))
     elif kind == "mute":
         g.audio.muted = not g.audio.muted
         g.data["settings"]["music"] = not g.audio.muted
@@ -121,6 +124,9 @@ def keydown(g, key):
                 g.start_mode("daily", "hard")
             elif key == pygame.K_ESCAPE:
                 g.screen = "title"
+            return
+        if key == pygame.K_d:
+            dispatch(g, ("difficulty", None))
             return
         if key == pygame.K_r:
             g.rec_road = g.picked_locale

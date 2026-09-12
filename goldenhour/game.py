@@ -6,7 +6,8 @@ import random
 import pygame
 
 from . import achievements, store
-from .config import (ACCEL, BRAKE, CAM_DEPTH, CAM_H, CENTRIFUGAL, DECEL, DRAW_DIST,
+from .config import (ACCEL, BRAKE, CAM_DEPTH, CAM_H, CENTRIFUGAL, DECEL, DEFAULT_DIFFICULTY,
+                     DIFFICULTIES, DRAW_DIST, difficulty_edge,
                      FOG_STEPS, MAX_SPEED, OFF_DECEL, OFF_LIMIT, PLAYER_Z, PTS,
                      SEG_LEN, SONG_LEN, U_PER_M, clamp, lerp, mix)
 from .locales import LOCALE_IDS, LOCALES
@@ -47,6 +48,9 @@ class Game:
         self.toasts = []
         self.mod = MOD_NONE
         self.reduced = False
+        self.difficulty = data["settings"].get("difficulty", DEFAULT_DIFFICULTY)
+        if self.difficulty not in [d[0] for d in DIFFICULTIES]:
+            self.difficulty = DEFAULT_DIFFICULTY
         self.mod_choices = []
         self.photo = False
 
@@ -73,7 +77,8 @@ class Game:
             bump = LOCALES[self.locale]["terrain"]["ai_skill"]
             head = self.mod.get("head_start")
             for i, spec in enumerate(RIDER_SPECS):
-                r = Rider(spec, i, rng, self.track, self.pos + PLAYER_Z, bump)
+                r = Rider(spec, i, rng, self.track, self.pos + PLAYER_Z, bump,
+                          difficulty_edge(self.race_difficulty))
                 if head:                       # slot in mid-pack, not at the back
                     r.dist -= 6000
                     r.z = (r.z - 6000) % self.track.length
@@ -158,6 +163,19 @@ class Game:
         self.seed = self.rnd.randrange(10 ** 9)
         self.track = build_track(self.seed, LOCALES[self.locale])
         self.reset_ride()
+
+    @property
+    def race_difficulty(self):
+        """Daily always runs at the default. A shared board cannot mean
+        anything if the field is softer for some players than others."""
+        return DEFAULT_DIFFICULTY if self.mode == "daily" else self.difficulty
+
+    def cycle_difficulty(self):
+        keys = [d[0] for d in DIFFICULTIES]
+        self.difficulty = keys[(keys.index(self.difficulty) + 1) % len(keys)]
+        self.data["settings"]["difficulty"] = self.difficulty
+        store.save(self.data)
+        return self.difficulty
 
     def locale_data(self):
         return LOCALES[self.locale]
@@ -286,11 +304,16 @@ class Game:
             best.stagger_dir = self.swing_side
             best.tell = 0
             best.cd = 3.4
-            best.knock = 1.15
+            # A landed hit still hurts, but a better field shrugs it off
+            # faster — otherwise combat snowballs and the race is decided by
+            # the first two punches.
+            ease = clamp((difficulty_edge(self.race_difficulty) - 1.0) * 1.6, 0.0, 0.55)
+            best.knock = 1.15 * (1 - ease)
             best.knock_tag = 2.0
-            best.speed *= 0.66
-            best.z = (best.z - 300) % self.track.length
-            best.dist -= 300
+            best.speed *= 0.66 + ease * 0.22
+            back = 300 * (1 - ease)
+            best.z = (best.z - back) % self.track.length
+            best.dist -= back
             self.speed = min(MAX_SPEED, self.speed * 1.035)
             self.hits += 1
             self.hit_stop = 0.075
