@@ -46,7 +46,10 @@ The whole product is one inversion: **keep the violence, delete the punishment.*
 | **Zen** | No rivals, no timer, no score. Just the road and a slow pad. |
 | **Daily** | The same seeded road for everyone, split Guided / Blind. |
 
-Daily takes its road from the date, so the board stays comparable. **Guided**
+Daily takes its road from the date, so the board stays comparable. Everything
+that moves a racer draws from a stream seeded by the track, so the same seed
+really is the same race — verified by running one twice with identical inputs
+and diffing the finishing distances. **Guided**
 gives a road map and rally-style corner calls; **Blind** gives you nothing.
 They keep separate records, so difficulty is a choice rather than a handicap.
 
@@ -66,7 +69,9 @@ for root, fifth and a long pad at 76 bpm.
 
 ## The pack
 
-Five named riders, colour-matched to their dot on the standings.
+Five named riders, colour-matched to their dot on the standings. The colours
+are the Okabe-Ito set, which stays distinguishable under the common forms of
+colour blindness.
 
 | | Reads ahead | Pushes | Corners | Wants a fight |
 |---|---|---|---|---|
@@ -93,10 +98,14 @@ corner risk, and far more willingness to come looking for you.
 | Hit a rival | 130 |
 | Overtake | 180 |
 | Knockdown — a hit that puts them in the dirt | 260 |
-| **Perfect run** | **2,500** |
+| Clean run — two contacts or fewer | 800 |
+| **Perfect run** — none at all | **2,500** |
 
-A **perfect run** is a whole race with no traffic contact, no rival landing one
-on you and no wheel off the road. A pip in the HUD tracks it live.
+A pip in the HUD tracks contact live, so the run always has something to
+protect. **Clean run** is the reachable tier; **perfect** asks for a whole
+race with no traffic contact, no rival landing one on you and no excursion
+off the road, and is meant to be rare. Brushing the shoulder through an apex
+does not count — only being off the road for a fifth of a second does.
 
 Fifteen **achievements** persist and appear in the record room.
 
