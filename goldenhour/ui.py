@@ -6,6 +6,7 @@ a click is resolved against them.
 """
 import datetime
 import math
+import sys
 
 import pygame
 
@@ -23,9 +24,20 @@ REC_MODES = [("run", "Run"), ("daily:easy", "Daily · Guided"),
              ("daily:hard", "Daily · Blind"), ("survive", "Survive")]
 
 
+WEB = sys.platform == "emscripten"
+
+
 def _font(names, size, bold=False):
-    f = pygame.font.SysFont(names, size, bold=bold)
-    return f
+    """One font.
+
+    SysFont enumerates the system's fonts, and a browser runtime has no font
+    directory to enumerate: in the web build every one of these calls is a
+    scan that finds nothing, ten of them at startup. There, use the font
+    pygame ships with, which is always present and costs nothing to open.
+    """
+    if WEB:
+        return pygame.font.Font(None, int(size * 1.18))
+    return pygame.font.SysFont(names, size, bold=bold)
 
 
 BASE_H = 640          # the height the sizes below were chosen against

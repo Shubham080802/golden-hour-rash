@@ -22,6 +22,22 @@ from .ui import Fonts, Ui
 WEB = sys.platform == "emscripten"
 
 
+def weblog(msg):
+    """Say something the browser's console will show.
+
+    A wasm build has no terminal to print to that anyone can reach, so
+    startup progress and any failure go to the page console instead. Costs
+    nothing on the desktop, where it does not run at all.
+    """
+    if not WEB:
+        return
+    try:
+        import platform as _p
+        _p.window.console.log("GHR: " + str(msg))
+    except Exception:
+        print("GHR:", msg, flush=True)
+
+
 def dispatch(g, action):
     """One place where every button and key ends up."""
     if not action:
@@ -249,7 +265,9 @@ async def run():
     event loop, and a frame has to hand control back or the tab locks up.
     On the desktop the await below costs nothing measurable.
     """
+    weblog("run() entered")
     pygame.init()
+    weblog("pygame.init done")
     if WEB:
         # The browser canvas is a fixed size the page decides; asking for a
         # resizable window of our own leaves the canvas at 1x1 and nothing
@@ -257,31 +275,42 @@ async def run():
         screen = pygame.display.set_mode((WIN_W, WIN_H))
     else:
         screen = pygame.display.set_mode((WIN_W, WIN_H), pygame.RESIZABLE)
+    weblog("set_mode done " + str(screen.get_size()))
     pygame.display.set_caption("Golden Hour Rash")
     clock = pygame.time.Clock()
 
-    pygame.joystick.init()
     pads = []
-    for i in range(pygame.joystick.get_count()):
-        try:
-            pad = pygame.joystick.Joystick(i)
-            pad.init()
-            pads.append(pad)
-        except pygame.error:
-            pass
+    if not WEB:
+        # Browsers hand gamepads over through their own API, and asking SDL
+        # for them in a wasm runtime is a good way to stall on startup.
+        pygame.joystick.init()
+        for i in range(pygame.joystick.get_count()):
+            try:
+                pad = pygame.joystick.Joystick(i)
+                pad.init()
+                pads.append(pad)
+            except pygame.error:
+                pass
 
     fonts = Fonts()
+    weblog("fonts built")
     ui = Ui(fonts)
     renderer = Renderer(fonts)
+    weblog("renderer built")
     audio = Audio()
+    weblog("audio built, ok=" + str(audio.ok))
     data = store.load()
+    weblog("save loaded")
     game = Game(renderer, audio, data)
+    weblog("game built")
     game.postfx = PostFX(data["settings"].get("quality", "high"))
     if store.LOAD_WARNING:
         game.postfx.note(store.LOAD_WARNING)
     game.reduced = data["settings"].get("reduced_motion", False)
     game.postfx.brightness = data["settings"].get("brightness", 1.0)
 
+    weblog("entering the loop")
+    frames_logged = 0
     running = True
     while running:
         dt = min(0.05, clock.tick(FPS) / 1000.0)
@@ -395,6 +424,9 @@ async def run():
             ui.fx_note(screen, fx, w, h)
 
         pygame.display.flip()
+        if WEB and frames_logged < 3:
+            frames_logged += 1
+            weblog("frame %d on screen" % frames_logged)
         await asyncio.sleep(0)          # hand the frame back to the browser
 
     store.save(data)
