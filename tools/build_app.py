@@ -11,7 +11,6 @@ import platform
 import shutil
 import subprocess
 import sys
-import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -23,7 +22,7 @@ NAME = "GoldenHourRash"
 
 def main():
     try:
-        import PyInstaller                    # noqa: F401
+        __import__("PyInstaller")
     except ImportError:
         print("PyInstaller is not installed:  pip install pyinstaller")
         return 1
@@ -61,16 +60,69 @@ def main():
         return 1
 
     out = dist / f"{NAME}-{__version__}-{system}-{arch}.zip"
-    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
-        if target.is_dir():
-            for p in sorted(target.rglob("*")):
-                if p.is_symlink() or p.is_file():
-                    z.write(p, p.relative_to(dist))
-        else:
-            z.write(target, target.name)
+    out.unlink(missing_ok=True)
+    if system == "darwin":
+        # ditto, not zipfile: an .app is full of symlinks (the Python
+        # framework's Versions/Current among them) and Python's zipfile
+        # FOLLOWS them, writing the target's bytes as a plain file. The
+        # bundle unzips looking complete and dies with "No module named
+        # _struct" the moment it runs. ditto preserves links and modes.
+        rc = subprocess.call(["ditto", "-c", "-k", "--sequesterRsrc",
+                              "--keepParent", str(target), str(out)])
+        if rc != 0:
+            print("ditto failed")
+            return 1
+    else:
+        shutil.make_archive(str(out.with_suffix("")), "zip",
+                            root_dir=str(dist), base_dir=target.name)
+
+    if not verify(out, target, dist):
+        return 1
     print(f"\n{target}")
     print(f"{out}  ({out.stat().st_size / 1e6:.1f} MB)")
     return 0
+
+
+def verify(archive, target, dist):
+    """Unpack what we just wrote and run it.
+
+    Building an archive that unpacks into something that will not start is
+    the whole failure mode this guards, so the build does not claim success
+    until a copy extracted from the archive has actually booted.
+    """
+    import os
+    import time
+    check = dist / "_verify"
+    shutil.rmtree(check, ignore_errors=True)
+    check.mkdir(parents=True)
+    if platform.system().lower() == "darwin":
+        rc = subprocess.call(["ditto", "-x", "-k", str(archive), str(check)])
+    else:
+        shutil.unpack_archive(str(archive), str(check))
+        rc = 0
+    if rc != 0:
+        print("could not unpack the archive we just wrote")
+        return False
+
+    app = check / target.name
+    exe = (app / "Contents" / "MacOS" / NAME) if app.suffix == ".app" else app
+    if not exe.exists():
+        print(f"unpacked archive has no executable at {exe}")
+        return False
+    env = dict(os.environ, SDL_VIDEODRIVER="dummy", SDL_AUDIODRIVER="dummy",
+               GOLDENHOUR_HOME=str(check / "home"))
+    proc = subprocess.Popen([str(exe)], env=env,
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    for _ in range(60):
+        time.sleep(0.25)
+        if proc.poll() is not None:
+            out = (proc.stdout.read() or b"").decode(errors="replace")
+            print("the packaged build exited instead of running:\n" + out[-1500:])
+            return False
+    proc.terminate()
+    shutil.rmtree(check, ignore_errors=True)
+    print("verified: a copy extracted from the archive boots and runs")
+    return True
 
 
 if __name__ == "__main__":
