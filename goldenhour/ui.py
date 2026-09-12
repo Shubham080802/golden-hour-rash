@@ -11,7 +11,7 @@ import pygame
 
 from .achievements import ACHIEVEMENTS, progress
 from .config import (CREAM, EMBER, HOT, INK, LINE, MAX_SPEED, MINT, MUTED, SONG_LEN,
-                     SUN, U_PER_M, clamp)
+                     SUN, U_PER_M, clamp, lerp)
 from .game import daily_locale
 from .locales import LOCALE_IDS, LOCALES
 from . import store
@@ -44,6 +44,7 @@ class Ui:
     def __init__(self, fonts):
         self.f = fonts
         self.hot = []
+        self._grads = {}
 
     # ---- primitives -----------------------------------------------------
     def begin(self):
@@ -88,12 +89,23 @@ class Ui:
         s.blit(veil, (0, 0))
 
     # ---- HUD -------------------------------------------------------------
+    def _gradient(self, w, band, flip):
+        """Cached dark fade, so HUD text keeps its contrast over a bright road
+        like Salt & Sand as well as over a dusk one."""
+        key = (w, band, flip)
+        surf = self._grads.get(key)
+        if surf is None:
+            surf = pygame.Surface((w, band), pygame.SRCALPHA)
+            for i in range(band):
+                t = (i / band) if flip else (1 - i / band)
+                surf.fill((12, 6, 24, int(210 * (t ** 1.5))), pygame.Rect(0, i, w, 1))
+            self._grads[key] = surf
+        return surf
+
     def hud(self, s, g, w, h):
         zen = g.mode == "zen"
-        top = pygame.Surface((w, 74), pygame.SRCALPHA)
-        for i in range(74):
-            top.fill((12, 6, 24, int(200 * (1 - i / 74))), pygame.Rect(0, i, w, 1))
-        s.blit(top, (0, 0))
+        s.blit(self._gradient(w, 74, False), (0, 0))
+        s.blit(self._gradient(w, 190, True), (0, h - 190))
 
         self.text(s, "SPEED", self.f.tag, MUTED, 16, 12)
         self.text(s, str(round(g.speed / U_PER_M * 3.6)), self.f.num, CREAM, 16, 24)
@@ -114,6 +126,7 @@ class Ui:
                   bar.right, bar.bottom + 5, "topright")
 
         if not zen:
+            self._mirror(s, g, w, h)
             self._standings(s, g, w, h)
             self._combo(s, g, w, h)
             self._clean_pip(s, g, h)
@@ -121,13 +134,49 @@ class Ui:
                 self._guide_map(s, g, w, h)
                 self._callout(s, g, w, h)
 
-        keys = ["← →  steer", "J / space  swing", "M  music", "Esc  end ride"]
+        keys = ["← →  steer", "J / space  swing", "M  music",
+                "F  graphics", "Esc  end ride"]
         for i, k in enumerate(keys):
             self.text(s, k, self.f.tiny, MUTED, w - 16, h - 18 - (len(keys) - 1 - i) * 14,
                       "topright")
 
         self._pops(s, g, w, h)
         self.toasts(s, g, w)
+
+    def _mirror(self, s, g, w, h):
+        """Who is behind, and on which side.
+
+        Not a true mirror — that would want a second render pass. It is a read
+        of the road behind you, which is the part you actually need: the
+        standings tell you a rival is close, this tells you which shoulder to
+        expect them over.
+        """
+        rect = pygame.Rect(w // 2 - 118, 58, 236, 48)
+        self.panel(s, rect, 170)
+        pygame.draw.polygon(s, (32, 22, 52), [
+            (rect.centerx - 78, rect.bottom - 3), (rect.centerx + 78, rect.bottom - 3),
+            (rect.centerx + 30, rect.y + 11), (rect.centerx - 30, rect.y + 11)])
+
+        player_pos = g.pos + g.PLAYER_Z
+        closest = None
+        for r in g.riders:
+            d = g.track.rel_z(r.z - player_pos)
+            if not (-9000 < d < -120):
+                continue
+            t = clamp((-d) / 9000.0, 0, 1)         # 0 right behind, 1 far back
+            y = rect.bottom - 6 - t * (rect.height - 20)
+            half = lerp(74, 28, t)
+            x = rect.centerx + (r.offset - g.player_x) * half * 0.9
+            sz = max(2, int(lerp(8, 3, t)))
+            pygame.draw.circle(s, r.bike, (int(x), int(y)), sz)
+            if r.fight > 0:                         # coming for the place back
+                pygame.draw.circle(s, SUN, (int(x), int(y)), sz + 3, 1)
+            if closest is None or t < closest:
+                closest = t
+        label = "CLEAR BEHIND" if closest is None else (
+            "CLOSING" if closest < 0.25 else "BEHIND")
+        col = MUTED if closest is None else (HOT if closest < 0.25 else CREAM)
+        self.text(s, label, self.f.tiny, col, rect.centerx, rect.y + 1, "midtop")
 
     def _combo(self, s, g, w, h):
         col = HOT if g.combo else MUTED
@@ -257,6 +306,16 @@ class Ui:
             self.text(s, "ACHIEVEMENT", self.f.tiny, SUN, rect.x + 12, rect.y + 7)
             self.text(s, t["name"], self.f.body, CREAM, rect.x + 12, rect.y + 19)
             self.text(s, t["desc"], self.f.tiny, MUTED, rect.x + 12, rect.y + 36)
+
+    def fx_note(self, s, fx, w, h):
+        img = self.f.tiny.render(fx.last_note, True, CREAM)
+        img.set_alpha(int(220 * fx.note_alpha))
+        box = pygame.Rect(0, 0, img.get_width() + 20, 24)
+        box.center = (w // 2, h - 34)
+        pane = pygame.Surface(box.size, pygame.SRCALPHA)
+        pane.fill((12, 6, 24, int(200 * fx.note_alpha)))
+        s.blit(pane, box.topleft)
+        s.blit(img, img.get_rect(center=box.center))
 
     # ---- screens ---------------------------------------------------------
     def title(self, s, g, w, h):

@@ -36,6 +36,8 @@ class Renderer:
         self._vig = None
         self._vig_key = None
         self._bloom = {}
+        self._clouds = None
+        self._air = None
         self._fog = {}
         self.bg_x = 0.0
         self.smooth_slope = 0.0
@@ -101,6 +103,18 @@ class Renderer:
         self._bloom[key] = surf
         return surf
 
+    def air_layer(self, w, h):
+        """Scratch alpha surface reused each frame — allocating one per frame
+        at scene resolution is not free."""
+        if self._air is None or self._air.get_size() != (w, h):
+            self._air = pygame.Surface((w, h), pygame.SRCALPHA)
+        return self._air
+
+    def _cloud_layer(self, w, h):
+        if self._clouds is None or self._clouds.get_size() != (w, h):
+            self._clouds = pygame.Surface((w, h), pygame.SRCALPHA)
+        return self._clouds
+
     def vignette(self, w, h):
         key = (w, h)
         if self._vig_key == key:
@@ -133,33 +147,33 @@ class Renderer:
         sx = int(w * 0.5 - self.bg_x * 0.30)
         sy = int(horizon - sun_r * 1.45)
 
-        br = int(sun_r * 2.6)
-        surf.blit(self.bloom(loc["sun"], br), (sx - br, sy - br),
-                  special_flags=pygame.BLEND_RGBA_ADD)
         pygame.draw.circle(surf, loc["sun"], (sx, sy), sun_r)
-        pygame.draw.circle(surf, shade(loc["sun"], 0.45), (sx, sy - sun_r // 5), int(sun_r * 0.55))
+        pygame.draw.circle(surf, shade(loc["sun"], 0.45), (sx, sy - sun_r // 5),
+                           int(sun_r * 0.55))
 
-        # stratus bands catching the last light
+        # stratus bands catching the last light, drawn translucently on their
+        # own layer so they read as haze rather than as cut-out shapes
+        layer = self._cloud_layer(w, h)
+        layer.fill((0, 0, 0, 0))
+        hi = mix(loc["cloud_lo"], loc["cloud_hi"], 0.65)
         for i in range(9):
             cy = horizon - h * (0.085 + i * 0.042)
             cw = w * (0.30 + ((i * 53) % 46) / 100)
             cx = ((i * 263 + self.bg_x * 0.22) % (w * 1.9)) - w * 0.45
-            fade = 0.16 - i * 0.012
-            if fade <= 0.01:
+            alpha = int(64 - i * 5)
+            if alpha <= 4:
                 continue
-            col = mix(loc["cloud_lo"], loc["cloud_hi"], 0.6)
-            band = mix(self._sample_sky(loc, cy / max(1, h)), col, fade * 3)
-            rect = pygame.Rect(int(cx), int(cy - h * 0.013), int(cw), int(h * 0.026))
-            pygame.draw.ellipse(surf, band, rect)
+            for band, squash in ((0.026, 1.0), (0.014, 0.72)):
+                rect = pygame.Rect(int(cx + cw * (1 - squash) / 2), int(cy - h * band / 2),
+                                   int(cw * squash), max(2, int(h * band)))
+                pygame.draw.ellipse(layer, (*hi, alpha), rect)
+        surf.blit(layer, (0, 0))
 
         self._ridge(surf, loc["ridge_far"], loc["horizon"], horizon, 0.62, 0.30, h * 0.150, 1.0, 0, w)
         self._ridge(surf, loc["ridge_far"], loc["horizon"], horizon, 0.34, 0.62, h * 0.108, 1.7, 430, w)
         self._ridge(surf, loc["ridge_near"], loc["horizon"], horizon, 0.14, 1.05, h * 0.064, 2.8, 910, w)
 
-        # a little glare spilling back over the ridges
-        gr = int(sun_r * 1.9)
-        surf.blit(self.bloom(loc["sun"], gr, peak=16), (sx - gr, sy - gr),
-                  special_flags=pygame.BLEND_RGBA_ADD)
+
 
     def _sample_sky(self, loc, u):
         stops = loc["sky_stops"]
@@ -315,16 +329,31 @@ class Renderer:
         else:
             self._sign(surf, x, y, w, c1)
 
+    @staticmethod
+    def _quad(surf, col, p0, p1, p2, width, steps=5):
+        """Quadratic curve as a short polyline — canvas has curves, we don't."""
+        pts = []
+        for i in range(steps + 1):
+            t = i / steps
+            u = 1 - t
+            pts.append((u * u * p0[0] + 2 * u * t * p1[0] + t * t * p2[0],
+                        u * u * p0[1] + 2 * u * t * p1[1] + t * t * p2[1]))
+        pygame.draw.lines(surf, col, False, pts, width)
+
     def _palm(self, surf, x, y, w, f, col):
         h = w * 2.6
         d = -1 if f < 0.5 else 1
         tx, ty = x + w * 0.30 * d, y - h
-        pygame.draw.line(surf, col, (x, y), (tx, ty), max(1, int(w * 0.13)))
+        self._quad(surf, col, (x, y), (x + w * 0.16 * d, y - h * 0.55), (tx, ty),
+                   max(1, int(w * 0.13)))
+        lw = max(1, int(w * 0.09))
         for i in range(7):
             a = -math.pi + (i / 6) * math.pi
-            pygame.draw.line(surf, col, (tx, ty),
-                             (tx + math.cos(a) * w * 0.98, ty + math.sin(a) * w * 0.30 + w * 0.24),
-                             max(1, int(w * 0.095)))
+            ca, sa = math.cos(a), math.sin(a)
+            # control point lifts, end point falls: a frond that droops
+            self._quad(surf, col, (tx, ty),
+                       (tx + ca * w * 0.50, ty + sa * w * 0.34 - w * 0.26),
+                       (tx + ca * w * 0.86, ty + sa * w * 0.26 + w * 0.30), lw)
 
     def _pine(self, surf, x, y, w, col):
         h = w * 2.9

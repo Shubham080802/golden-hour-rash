@@ -12,9 +12,10 @@ import pygame
 
 from goldenhour import store
 from goldenhour.audio import Audio
-from goldenhour.config import FPS, INK, WIN_H, WIN_W
+from goldenhour.config import FPS, INK, MAX_SPEED, WIN_H, WIN_W
 from goldenhour.game import Game
 from goldenhour.locales import LOCALE_IDS
+from goldenhour.postfx import PostFX
 from goldenhour.render import Renderer
 from goldenhour.ui import Fonts, Ui
 
@@ -63,6 +64,11 @@ def dispatch(g, action):
 
 
 def keydown(g, key):
+    if key == pygame.K_f:
+        g.postfx.cycle()
+        g.data["settings"]["quality"] = g.postfx.quality
+        store.save(g.data)
+        return
     if key == pygame.K_m:
         dispatch(g, ("mute", None))
         return
@@ -107,13 +113,33 @@ def keydown(g, key):
         g.try_swing()
 
 
-def read_steering(g):
+DEADZONE = 0.18
+
+
+def read_steering(g, pads):
     k = pygame.key.get_pressed()
     left = k[pygame.K_LEFT] or k[pygame.K_a]
     right = k[pygame.K_RIGHT] or k[pygame.K_d]
-    g.steer = (-1 if left else 0) + (1 if right else 0)
-    g.braking = bool(k[pygame.K_DOWN] or k[pygame.K_s])
-    g.throttle = 0.0 if g.braking else 1.0
+    steer = (-1.0 if left else 0.0) + (1.0 if right else 0.0)
+    brake = bool(k[pygame.K_DOWN] or k[pygame.K_s])
+
+    # a pad, if one is plugged in — analogue steering beats digital here
+    for pad in pads:
+        try:
+            ax = pad.get_axis(0)
+            if abs(ax) > DEADZONE:
+                steer = max(-1.0, min(1.0, (ax - DEADZONE * (1 if ax > 0 else -1))
+                                      / (1 - DEADZONE)))
+            if pad.get_numbuttons() > 1 and pad.get_button(1):
+                brake = True
+            if pad.get_numaxes() > 4 and pad.get_axis(4) > 0.1:
+                brake = True
+        except pygame.error:
+            continue
+
+    g.steer = steer
+    g.braking = brake
+    g.throttle = 0.0 if brake else 1.0
 
 
 def main():
@@ -122,12 +148,23 @@ def main():
     pygame.display.set_caption("Golden Hour Rash")
     clock = pygame.time.Clock()
 
+    pygame.joystick.init()
+    pads = []
+    for i in range(pygame.joystick.get_count()):
+        try:
+            pad = pygame.joystick.Joystick(i)
+            pad.init()
+            pads.append(pad)
+        except pygame.error:
+            pass
+
     fonts = Fonts()
     ui = Ui(fonts)
     renderer = Renderer(fonts)
     audio = Audio()
     data = store.load()
     game = Game(renderer, audio, data)
+    game.postfx = PostFX(data["settings"].get("quality", "high"))
     game.locale_data = lambda: __import__(
         "goldenhour.locales", fromlist=["LOCALES"]).LOCALES[game.locale]
 
@@ -143,14 +180,40 @@ def main():
                 keydown(game, ev.key)
             elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
                 dispatch(game, ui.click(ev.pos))
+            elif ev.type == pygame.JOYBUTTONDOWN:
+                if ev.button in (0, 2):                  # A / X — swing
+                    if game.phase == "playing":
+                        game.try_swing()
+                    elif game.phase == "title":
+                        game.start_mode("run")
+                elif ev.button in (6, 7, 9):             # start / menu
+                    keydown(game, pygame.K_ESCAPE)
+            elif ev.type == pygame.JOYDEVICEADDED:
+                try:
+                    pad = pygame.joystick.Joystick(ev.device_index)
+                    pad.init()
+                    pads.append(pad)
+                except pygame.error:
+                    pass
 
         if game.phase == "playing":
-            read_steering(game)
+            read_steering(game, pads)
         game.update(dt)
 
         w, h = screen.get_size()
-        screen.fill(INK)
-        game.draw_world(screen, w, h)
+        fx = game.postfx
+        fx.tick(dt, clock.get_time())
+
+        # the world is drawn big and filtered, then resolved into the window;
+        # the interface goes on afterwards at native size so text stays sharp
+        scene = fx.scene_for(w, h)
+        scene.fill(INK)
+        game.draw_world(scene, *scene.get_size())
+        fx.bloom(scene)
+        if game.phase == "playing":
+            fx.speed_blur(scene, max(0.0, game.speed / MAX_SPEED - 0.45) / 0.55)
+        fx.resolve(scene, screen)
+
         screen.blit(renderer.vignette(w, h), (0, 0))
         if game.flash > 0.01:
             fl = pygame.Surface((w, h), pygame.SRCALPHA)
@@ -170,6 +233,9 @@ def main():
             ui.pause(screen, game, w, h)
         elif game.screen == "results":
             ui.results(screen, game, w, h)
+
+        if fx.note_alpha > 0:
+            ui.fx_note(screen, fx, w, h)
 
         pygame.display.flip()
 

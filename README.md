@@ -9,11 +9,12 @@ python main.py
 ```
 
 ```
-← →  or A/D   steer
-↓    or S     brake
-J or Space    swing
+← →  or A/D   steer          (or a gamepad's left stick)
+↓    or S     brake          (or B / left trigger)
+J or Space    swing          (or A / X)
 Esc           pause / end ride
 M             music on / off
+F             graphics quality
 R             record room (title screen)
 1 / 2 / 3     Run / Zen / Daily
 ```
@@ -97,6 +98,10 @@ on you and no wheel off the road. A pip in the HUD tracks it live.
 
 Fifteen **achievements** persist and appear in the record room.
 
+A **rear view** above the road shows who is behind you and on which shoulder —
+the standings tell you a rival is close, this tells you which side to expect
+them. A ring around a marker means they are coming for the place back.
+
 ## Classification and records
 
 A run ends when the song ends, not at a finish line, so a "gap" needs a
@@ -136,6 +141,29 @@ Run the self-test without a display:
 python tools/smoke.py
 ```
 
+## Graphics pipeline
+
+The world is drawn into an offscreen surface, filtered, then resolved into the
+window. The interface is drawn afterwards at native size so text stays sharp.
+
+- **Supersampling** — draw big, resolve small. The cheapest real anti-aliasing
+  there is, and it removes the jagged diagonals a road is made of.
+- **Bloom** — bright-pass, blur, add back. Every expensive step happens on a
+  surface a sixth of the size; going down and coming back up use nearest
+  neighbour, because a blurred image has no detail left to protect. Only the
+  blur itself is smooth.
+- **Speed blur** — successive zooms blended over the frame, ramped by how fast
+  you are going, so it costs nothing when you are slow.
+- **Airborne atmosphere** — dust, spray and mist streaming radially out of the
+  vanishing point, per road. One list of floats, and it sells motion better
+  than anything else at the price.
+
+`F` cycles **low / high / ultra**. The setting persists, and if frames start
+running long the game eases itself down a level rather than stuttering.
+
+Measured in software rendering at 1000×640: low **330 fps**, high **99 fps**,
+ultra **73 fps**. Hardware surfaces will do better.
+
 ## Technical notes
 
 - **Rendering** — segment-based pseudo-3D road projection, the technique OutRun
@@ -147,6 +175,8 @@ python tools/smoke.py
 - **Tracks** — seeded generation, so a given seed always produces the same road.
 - **Assets** — none. Every bike, rider, car, palm, pine, cactus and mesa is
   drawn from primitives at runtime.
+- **Input** — keyboard or gamepad; an analogue stick gives finer steering than
+  a key ever can.
 
 Dependencies: `pygame` and `numpy`.
 

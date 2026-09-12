@@ -26,6 +26,7 @@ LOCALES = {
         "lanes": True, "rails": True, "bpm": 126, "prop_density": 0.30,
         "props": [{"kind": "palm", "scale": 1.0}, {"kind": "palm", "scale": 0.8},
                   {"kind": "rock", "scale": 0.8}, {"kind": "sign", "scale": 0.55}],
+        "weather": {"colour": hexc("#FFD9A8"), "count": 70,  "streak": 2.4, "size": 1.0, "alpha": 70},
         "terrain": {"hill_amp": 1.0, "curve_amp": 1.0, "climb": 0,
                     "straight_bias": 0.30, "tight": 0.16, "ai_skill": 0.00},
         # A minor, four on the floor — the driving one.
@@ -55,6 +56,7 @@ LOCALES = {
         "lanes": False, "rails": False, "bpm": 116, "prop_density": 0.36,
         "props": [{"kind": "grass", "scale": 0.5}, {"kind": "grass", "scale": 0.4},
                   {"kind": "driftwood", "scale": 0.6}, {"kind": "rock", "scale": 0.55}],
+        "weather": {"colour": hexc("#FFF3D6"), "count": 150, "streak": 3.4, "size": 1.1, "alpha": 95},
         "terrain": {"hill_amp": 0.30, "curve_amp": 0.70, "climb": 0,
                     "straight_bias": 0.52, "tight": 0.05, "ai_skill": 0.00},
         # D major, half-time, plenty of air — the one you ride to unwind.
@@ -84,6 +86,7 @@ LOCALES = {
         "lanes": True, "rails": True, "bpm": 132, "prop_density": 0.42,
         "props": [{"kind": "pine", "scale": 1.0}, {"kind": "pine", "scale": 0.75},
                   {"kind": "boulder", "scale": 0.9}, {"kind": "sign", "scale": 0.55}],
+        "weather": {"colour": hexc("#E6F1F7"), "count": 120, "streak": 1.8, "size": 1.2, "alpha": 85},
         "terrain": {"hill_amp": 1.9, "curve_amp": 1.35, "climb": 1,
                     "straight_bias": 0.18, "tight": 0.34, "ai_skill": 0.20},
         # E phrygian — the flat second is the whole reason this road sounds
@@ -114,6 +117,7 @@ LOCALES = {
         "lanes": True, "rails": False, "bpm": 128, "prop_density": 0.26,
         "props": [{"kind": "cactus", "scale": 0.7}, {"kind": "mesa", "scale": 2.6, "far": True},
                   {"kind": "boulder", "scale": 0.9}, {"kind": "cactus", "scale": 0.5}],
+        "weather": {"colour": hexc("#F0B07A"), "count": 130, "streak": 3.0, "size": 1.1, "alpha": 88},
         "terrain": {"hill_amp": 0.70, "curve_amp": 1.35, "climb": 0,
                     "straight_bias": 0.42, "tight": 0.22, "ai_skill": 0.08},
         # A blues with a swung sixteenth — swagger rather than urgency.

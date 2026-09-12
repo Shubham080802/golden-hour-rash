@@ -14,6 +14,7 @@ from .racers import (Car, RIDER_SPECS, Rider, fastest_km, push_trace,
                      time_at_distance)
 from .render import project
 from .track import Rng, build_track, hash_str
+from .weather import Weather
 
 
 def today_key():
@@ -52,6 +53,7 @@ class Game:
         self.seed = 0
         self.track = None
         self.frame = 0
+        self.weather = Weather()
         self.start_attract()
 
     # ---------------------------------------------------------------- setup
@@ -597,6 +599,14 @@ class Game:
                                  mix(a.suit, loc["horizon"], fog_t),
                                  a.lean, a.swing, a.swing_side, a.tell, a.tell_side)
         surf.set_clip(None)
+
+        spec = loc["weather"]
+        pct = self.speed / MAX_SPEED
+        self.weather.update(1 / 60.0, pct, spec)
+        air = r.air_layer(w, h)
+        air.fill((0, 0, 0, 0))
+        self.weather.draw(air, w, h, horizon, pct, spec)
+        surf.blit(air, (0, 0))
 
         self.draw_player(surf, w, h)
 
