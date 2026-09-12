@@ -460,3 +460,10 @@ This is a vertical slice built to answer one question — *is the loop fun?*
 - No bike progression, damage model or unlocks.
 - Fonts fall back to whatever the system has (Impact, Menlo and friends) rather
   than shipping their own.
+
+## Licence
+
+[MIT](LICENSE). Use it, change it, ship it, sell it — keep the copyright
+notice. The dependencies are permissively licensed too: pygame-ce under LGPL
+2.1 and numpy under a BSD 3-clause licence, both of which the packaged app
+bundles unmodified.

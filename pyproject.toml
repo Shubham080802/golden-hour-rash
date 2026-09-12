@@ -7,6 +7,8 @@ name = "golden-hour-rash"
 version = "1.0.0"
 description = "A motorcycle combat racer: five roads, five modes, and a sunrise at the end of one of them."
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
 dependencies = [
     "pygame>=2.5,<3",
