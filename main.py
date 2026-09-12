@@ -34,6 +34,8 @@ def dispatch(g, action):
             g.open_mods()
         elif val == "story":
             g.open_journey()
+        elif val == "survive":
+            g.start_survival()
         else:
             g.start_mode(val)
     elif kind == "mod":
@@ -60,7 +62,9 @@ def dispatch(g, action):
         g.postfx.note("Sound off" if g.audio.muted else "Sound on")
         store.save(g.data)
     elif kind == "again":
-        if g.mode == "story":
+        if g.mode == "survive":
+            g.start_survival()
+        elif g.mode == "story":
             g.start_story()
         else:
             g.start_mode(g.mode, g.diff)
@@ -186,6 +190,8 @@ def keydown(g, key):
             g.screen = "diff"
         elif key == pygame.K_4:
             g.open_journey()
+        elif key == pygame.K_5:
+            g.start_survival()
         return
 
     if key == pygame.K_ESCAPE:

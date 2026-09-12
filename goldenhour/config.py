@@ -30,6 +30,13 @@ CENTRIFUGAL = 0.32
 # these roads — long enough to have a race, too short to have a race that
 # turns around.
 SONG_LEN = 180.0
+
+# ---- survival -------------------------------------------------------------
+SURVIVE_LEN = 300.0        # five minutes on the way out of the backstreets
+SURVIVE_HEALTH = 100.0
+SURVIVE_LIVES = 3          # wipeouts you can get up from; the next one is over
+SURVIVE_REGEN = 0.85       # health a second, once you have been clean a while
+SURVIVE_REGEN_AFTER = 8.0  # seconds without contact before that starts
 U_PER_M = 210.0
 KM = 1000 * U_PER_M
 FOG_STEPS = 22

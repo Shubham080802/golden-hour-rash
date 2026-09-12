@@ -541,6 +541,86 @@ class Renderer:
             pygame.draw.circle(surf, (232, 188, 147), (int(fx), int(fy)),
                                max(3, int(w * 0.030)))
 
+    def draw_hazard(self, surf, kind, x, y, w, f, fog_col, fog_t):
+        """What is lying in the road. Read at 200 km/h or not at all, so
+        every one of these is a silhouette with one bright edge."""
+        def c(col):
+            return mix(col, fog_col, fog_t)
+
+        if kind == "oil":
+            # a slick is flat: an ellipse on the road with a sheen
+            rw, rh = w * 1.15, w * 0.34
+            pygame.draw.ellipse(surf, c((16, 14, 22)),
+                                pygame.Rect(x - rw / 2, y - rh, rw, rh))
+            pygame.draw.ellipse(surf, c((70, 58, 92)),
+                                pygame.Rect(x - rw * 0.30, y - rh * 0.86,
+                                            rw * 0.44, rh * 0.42))
+            return
+        if kind == "pothole":
+            rw, rh = w * 0.66, w * 0.22
+            pygame.draw.ellipse(surf, c((10, 9, 14)),
+                                pygame.Rect(x - rw / 2, y - rh, rw, rh))
+            pygame.draw.arc(surf, c((132, 120, 104)),
+                            pygame.Rect(x - rw / 2, y - rh * 1.5, rw, rh * 1.6),
+                            3.4, 6.0, max(1, int(w * 0.05)))
+            return
+        if kind == "cone":
+            h = w * 0.62
+            pygame.draw.polygon(surf, c((214, 92, 34)), [
+                (x, y - h), (x + w * 0.24, y), (x - w * 0.24, y)])
+            pygame.draw.line(surf, c((240, 232, 216)),
+                             (x - w * 0.15, y - h * 0.45), (x + w * 0.15, y - h * 0.45),
+                             max(1, int(h * 0.16)))
+            return
+        if kind == "debris":
+            for i, (dx, dy, r) in enumerate(((-0.30, 0.0, 0.20), (0.02, -0.05, 0.26),
+                                             (0.32, 0.02, 0.17), (-0.05, 0.06, 0.14))):
+                shade_i = 0.10 - i * 0.06
+                pygame.draw.circle(surf, c(shade((96, 88, 82), shade_i)),
+                                   (int(x + dx * w), int(y + dy * w - r * w * 0.6)),
+                                   max(1, int(r * w)))
+            return
+        if kind == "barrier":
+            h = w * 0.52
+            pygame.draw.rect(surf, c((198, 78, 40)),
+                             pygame.Rect(x - w * 0.62, y - h, w * 1.24, h * 0.62))
+            for i in range(3):
+                bx = x - w * 0.62 + w * 1.24 * (i + 0.5) / 3
+                pygame.draw.polygon(surf, c((238, 230, 214)), [
+                    (bx - w * 0.10, y - h), (bx + w * 0.10, y - h),
+                    (bx + w * 0.02, y - h * 0.38), (bx - w * 0.18, y - h * 0.38)])
+            for sx in (-1, 1):
+                pygame.draw.line(surf, c((60, 56, 66)),
+                                 (x + sx * w * 0.52, y - h * 0.38),
+                                 (x + sx * w * 0.58, y), max(1, int(w * 0.07)))
+            return
+        if kind == "barrel":
+            h = w * 0.78
+            pygame.draw.rect(surf, c((120, 62, 40)),
+                             pygame.Rect(x - w * 0.26, y - h, w * 0.52, h))
+            pygame.draw.ellipse(surf, c((150, 84, 52)),
+                                pygame.Rect(x - w * 0.26, y - h - w * 0.07, w * 0.52, w * 0.14))
+            # flame, shaped by the hazard's own look seed so they differ
+            fh = h * (0.5 + f * 0.5)
+            pygame.draw.polygon(surf, c((255, 168, 60)), [
+                (x - w * 0.16, y - h), (x + w * 0.16, y - h),
+                (x + w * 0.05, y - h - fh * 0.7), (x - w * 0.02, y - h - fh)])
+            pygame.draw.polygon(surf, c((255, 226, 150)), [
+                (x - w * 0.07, y - h), (x + w * 0.07, y - h),
+                (x - w * 0.01, y - h - fh * 0.52)])
+            return
+        # skip
+        h = w * 0.62
+        body = c((128, 66, 40))
+        pygame.draw.polygon(surf, body, [
+            (x - w * 0.62, y), (x + w * 0.62, y),
+            (x + w * 0.76, y - h), (x - w * 0.76, y - h)])
+        pygame.draw.line(surf, c((176, 106, 62)), (x - w * 0.76, y - h),
+                         (x + w * 0.76, y - h), max(1, int(w * 0.09)))
+        pygame.draw.polygon(surf, c((70, 62, 58)), [
+            (x - w * 0.48, y - h), (x - w * 0.08, y - h * 1.34),
+            (x + w * 0.36, y - h * 1.12), (x + w * 0.58, y - h)])
+
     def draw_prop(self, surf, kind, x, y, w, f, c1, c2):
         if kind == "palm":
             self._palm(surf, x, y, w, f, c1)
@@ -556,8 +636,101 @@ class Renderer:
             self._mesa(surf, x, y, w, c2)
         elif kind in ("rock", "boulder"):
             self._rock(surf, x, y, w, f, c2)
+        elif kind == "block":
+            self._block(surf, x, y, w, f, c2)
+        elif kind == "lamp":
+            self._lamp(surf, x, y, w, f, c1)
+        elif kind == "fence":
+            self._fence(surf, x, y, w, f, c2)
+        elif kind == "skip":
+            self._skip(surf, x, y, w, f, c2)
         else:
             self._sign(surf, x, y, w, c1)
+
+    # ---- the backstreets -------------------------------------------------
+    def _block(self, surf, x, y, w, f, col):
+        """A condemned block. Most windows are dark; a few are not, which is
+        what makes the rest read as empty rather than as unlit."""
+        h = w * (2.2 + f * 1.6)
+        body = shade(col, -0.12)
+        rect = pygame.Rect(int(x - w * 0.5), int(y - h), max(2, int(w)), int(h))
+        pygame.draw.rect(surf, body, rect)
+        pygame.draw.rect(surf, shade(body, 0.14),
+                         pygame.Rect(rect.x, rect.y, max(1, int(w * 0.16)), rect.h))
+        if w < 10:
+            return
+        cols = max(2, int(w // 9))
+        rows = max(3, int(h // (w * 0.42)))
+        gw, gh = rect.w / (cols + 1), rect.h / (rows + 1)
+        lit = shade((255, 196, 120), -0.05)
+        for r_i in range(rows):
+            for c_i in range(cols):
+                # a fixed hash, so a given window keeps its state frame to frame
+                on = ((r_i * 7 + c_i * 13 + int(f * 97)) % 11) < 2
+                wx = rect.x + gw * (c_i + 0.7)
+                wy = rect.y + gh * (r_i + 0.8)
+                pygame.draw.rect(surf, lit if on else shade(body, -0.42),
+                                 pygame.Rect(int(wx), int(wy),
+                                             max(1, int(gw * 0.5)), max(1, int(gh * 0.42))))
+
+    def _lamp(self, surf, x, y, w, f, col):
+        """Sodium streetlight: post, arm, and a cone of light on its own
+        layer so it adds rather than paints over the road."""
+        h = w * 3.4
+        d = -1 if f < 0.5 else 1
+        post = shade(col, -0.35)
+        pygame.draw.line(surf, post, (x, y), (x, y - h), max(1, int(w * 0.10)))
+        head = (x + w * 0.42 * d, y - h)
+        pygame.draw.line(surf, post, (x, y - h * 0.97), head, max(1, int(w * 0.08)))
+        # The head stays small however near the lamp is: a big bright disc
+        # is what the bloom pass turns into a floodlight.
+        r = max(1, min(int(w * 0.11), 7))
+        pygame.draw.circle(surf, (255, 206, 128), (int(head[0]), int(head[1] + r)), r)
+        # The cone is a hint of sodium haze, not a searchlight. It is added on
+        # top and then the bloom pass gets at it as well, so this wants to be
+        # far fainter than it looks like it should be.
+        if w > 9:
+            glow = pygame.Surface((max(4, min(int(w * 1.4), 260)),
+                                   max(4, min(int(h * 0.45), 420))), pygame.SRCALPHA)
+            gx, gy = glow.get_width() / 2, 0
+            for i, a in ((3, 7), (2, 5), (1, 4)):
+                pygame.draw.polygon(glow, (255, 186, 104, a), [
+                    (gx - w * 0.07, gy), (gx + w * 0.07, gy),
+                    (gx + w * 0.11 * i, glow.get_height()),
+                    (gx - w * 0.11 * i, glow.get_height())])
+            surf.blit(glow, (int(head[0] - glow.get_width() / 2), int(head[1] + r)),
+                      special_flags=pygame.BLEND_RGBA_ADD)
+
+    def _fence(self, surf, x, y, w, f, col):
+        """Hoarding and chain-link along the kerb."""
+        h = w * 1.05
+        col1 = shade(col, -0.18)
+        pygame.draw.rect(surf, col1, pygame.Rect(int(x - w * 0.9), int(y - h),
+                                                 max(2, int(w * 1.8)), int(h)))
+        if w < 7:
+            return
+        mesh = shade(col1, 0.22)
+        step = max(3, int(w * 0.34))
+        for i in range(int(w * 1.8) // step + 1):
+            px = x - w * 0.9 + i * step
+            pygame.draw.line(surf, mesh, (px, y - h), (px + step * 0.8, y), 1)
+            pygame.draw.line(surf, mesh, (px, y), (px + step * 0.8, y - h), 1)
+        pygame.draw.line(surf, shade(col1, 0.3), (x - w * 0.9, y - h), (x + w * 0.9, y - h),
+                         max(1, int(w * 0.06)))
+
+    def _skip(self, surf, x, y, w, f, col):
+        """A skip on the kerb, rusted and overfilled."""
+        h = w * 0.72
+        body = mix(shade(col, -0.1), (122, 62, 38), 0.55)
+        pygame.draw.polygon(surf, body, [
+            (x - w * 0.62, y), (x + w * 0.62, y),
+            (x + w * 0.78, y - h), (x - w * 0.78, y - h)])
+        pygame.draw.line(surf, shade(body, 0.25), (x - w * 0.78, y - h),
+                         (x + w * 0.78, y - h), max(1, int(w * 0.09)))
+        if w > 8:
+            pygame.draw.polygon(surf, shade(body, -0.3), [
+                (x - w * 0.5, y - h), (x - w * 0.1, y - h * 1.28),
+                (x + w * 0.38, y - h * 1.1), (x + w * 0.6, y - h)])
 
     @staticmethod
     def _quad(surf, col, p0, p1, p2, width, steps=5):

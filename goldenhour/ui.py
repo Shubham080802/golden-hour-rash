@@ -11,14 +11,16 @@ import pygame
 
 from .achievements import ACHIEVEMENTS, progress
 from .config import (CREAM, EMBER, HOT, INK, KM, LINE, MINT, MUTED, PTS,
+                     SURVIVE_HEALTH, SURVIVE_LIVES,
                      camera_by_id, difficulty_name,
                      SUN, U_PER_M, clamp, lerp)
 from . import story
 from .game import daily_locale
-from .locales import LOCALE_IDS, LOCALES
+from .locales import LOCALE_IDS, LOCALES, SURVIVAL_LOCALE
 from . import store
 
-REC_MODES = [("run", "Run"), ("daily:easy", "Daily · Guided"), ("daily:hard", "Daily · Blind")]
+REC_MODES = [("run", "Run"), ("daily:easy", "Daily · Guided"),
+             ("daily:hard", "Daily · Blind"), ("survive", "Survive")]
 
 
 def _font(names, size, bold=False):
@@ -193,10 +195,13 @@ class Ui:
         pygame.draw.rect(s, SUN, pygame.Rect(bar.x, bar.y, int(bar.w * pct), bar.h),
                          border_radius=3)
         name = "Long Way Home (Pad)" if zen else LOCALES[g.locale]["track"]
+        if g.mode == "survive":
+            left = max(0.0, g.time_limit - g.t)
         if g.mode == "story":
             left = max(0.0, g.time_limit - g.t)
             name = g.story_ch["title"]
-        clock = (f"-{int(left // 60)}:{int(left % 60):02d}" if g.mode == "story"
+        clock = (f"-{int(left // 60)}:{int(left % 60):02d}"
+                 if g.mode in ("story", "survive")
                  else f"{int(g.t // 60)}:{int(g.t % 60):02d}")
         ty = bar.bottom + self.px(4)
         # The clock owns its end of the bar; the track title gets what is left.
@@ -207,6 +212,8 @@ class Ui:
 
         if g.mode == "story":
             self._objective(s, g, w, h)
+        if g.mode == "survive":
+            self._health(s, g, w, h)
         if not zen:
             if g.riders:                      # nothing behind you to watch for
                 self._mirror(s, g, w, h)
@@ -238,6 +245,46 @@ class Ui:
 
         self._pops(s, g, w, h)
         self.toasts(s, g, w)
+
+    def _health(self, s, g, w, h):
+        """The bar, what is left of the bike, and what is coming.
+
+        Health sits top-centre under the clock rather than in a corner: in
+        this mode it is the only number that decides anything.
+        """
+        pad = self.px(10)
+        bw = self.px(280)
+        box = pygame.Rect(w // 2 - bw // 2, self.px(124), bw,
+                          self.f.tag.get_height() + self.f.tiny.get_height()
+                          + self.px(24))
+        self.panel(s, box, 200)
+        frac = clamp(g.health / SURVIVE_HEALTH, 0, 1)
+        col = MINT if frac > 0.55 else (SUN if frac > 0.28 else HOT)
+        self.text(s, "CONDITION", self.f.tag, MUTED, box.x + pad, box.y + self.px(5))
+
+        # a pip per wipeout you can still take
+        px_r = max(3, self.px(4))
+        for i in range(SURVIVE_LIVES):
+            cxp = box.right - pad - i * self.px(14)
+            alive = i < g.lives
+            pygame.draw.circle(s, HOT if alive else (70, 60, 80),
+                               (cxp, box.y + self.px(9)), px_r,
+                               0 if alive else 1)
+
+        rail = pygame.Rect(box.x + pad, box.y + self.px(8) + self.f.tag.get_height(),
+                           bw - pad * 2, self.f.tiny.get_height())
+        pygame.draw.rect(s, (40, 30, 50), rail, border_radius=3)
+        fill = pygame.Rect(rail.x, rail.y, int(rail.w * frac), rail.h)
+        pygame.draw.rect(s, col, fill, border_radius=3)
+        pygame.draw.rect(s, LINE, rail, 1, border_radius=3)
+        self.text(s, f"{int(round(g.health))}", self.f.tiny, INK if frac > 0.3 else CREAM,
+                  rail.x + self.px(6), rail.y)
+        if g.getting_up > 0:
+            self.text(s, "PICKING THE BIKE UP", self.f.tiny, HOT, box.centerx,
+                      box.bottom + self.px(4), "midtop")
+        elif g.warn is not None:
+            self.text(s, g.warn.spec["label"] + " AHEAD", self.f.tiny, SUN,
+                      box.centerx, box.bottom + self.px(4), "midtop")
 
     def _objective(self, s, g, w, h):
         """The chapter's goal, and where you stand against it right now."""
@@ -544,21 +591,30 @@ class Ui:
         self.text(s, "MODE", self.f.tag, MUTED, m,
                   y_mode - self.f.tag.get_height() - self.px(3))
         done = len(story.progress(g.data)["done"])
-        modes = [("run", "RUN", "One song, one road, one score.", EMBER),
+        modes = [("run", "RUN", "Three minutes, one road, one score.", EMBER),
                  ("zen", "ZEN", "No rivals, no timer, no score.", MINT),
                  ("daily", "DAILY", "Today's road, shared board.", SUN),
                  ("story", "STORY", f"Ride to the sunrise. {done}/"
-                                    f"{len(story.CHAPTERS)} legs.", (200, 139, 240))]
-        mw = (w - m * 2 - gap * 3) // 4
-        mode_h = pad * 2 + self.f.h2.get_height() + lh_t * 2
+                                    f"{len(story.CHAPTERS)} legs.", (200, 139, 240)),
+                 ("survive", "SURVIVE", "Five minutes out of the backstreets.",
+                  HOT)]
+        # Wrapped, and the row is as tall as the wordiest card needs. Five
+        # cards at 900 wide had them writing across each other.
+        mw = (w - m * 2 - gap * 4) // 5
+        wrapped = [self.wrap(d, self.f.tiny, mw - self.px(12))[:2]
+                   for _, _, d, _ in modes]
+        lines = max(len(x) for x in wrapped)
+        mode_h = pad * 2 + self.f.h2.get_height() + lh_t * (lines + 1)
         for i, (mid, name, desc, accent) in enumerate(modes):
             r = pygame.Rect(m + i * (mw + gap), y_mode, mw, mode_h)
             self.button(s, r, "", ("mode", mid))
             self.text(s, name, self.f.h2, accent, r.centerx, r.y + pad // 2, "midtop")
-            self.text(s, desc, self.f.tiny, MUTED, r.centerx,
-                      r.y + pad // 2 + self.f.h2.get_height(), "midtop")
+            ty = r.y + pad // 2 + self.f.h2.get_height()
+            for ln in wrapped[i]:
+                self.text(s, ln, self.f.tiny, MUTED, r.centerx, ty, "midtop")
+                ty += lh_t
             self.text(s, f"PRESS {i + 1}", self.f.tiny, MUTED, r.centerx,
-                      r.y + pad // 2 + self.f.h2.get_height() + lh_t, "midtop")
+                      r.y + pad // 2 + self.f.h2.get_height() + lh_t * lines, "midtop")
         self._after_modes = y_mode + mode_h
 
         y = self._after_modes + self.px(18)
@@ -676,6 +732,8 @@ class Ui:
 
     def results(self, s, g, w, h):
         res = g.results
+        if res.get("survive"):
+            return self.survival_results(s, g, w, h)
         if res.get("story"):
             return self.story_results(s, g, w, h)
         self.scrim(s, w, h)
@@ -793,6 +851,56 @@ class Ui:
         self.button(s, pygame.Rect(cx - self.px(160), int(h * 0.90), bw, bh),
                     "RIDE AGAIN", ("again", None))
         self.button(s, pygame.Rect(cx + self.px(10), int(h * 0.90), bw, bh),
+                    "CHANGE MODE", ("screen", "title"))
+        self.toasts(s, g, w)
+
+    def survival_results(self, s, g, w, h):
+        res = g.results
+        out = res["out"]
+        self.scrim(s, w, h)
+        cx = w // 2
+        secs = res["secs"]
+        y = self.head(
+            s, cx, int(h * 0.10), "BACKSTREETS",
+            "YOU GOT OUT" if out else "THEY KEPT YOU",
+            ("Five minutes, and the blocks are behind you."
+             if out else "The road ends where you stopped."))
+        self.text(s, f"{int(secs // 60)}:{int(secs % 60):02d}", self.f.big,
+                  MINT if out else EMBER, cx, y, "midtop")
+        y += self.f.big.get_height() + self.px(4)
+        if not out:
+            self.text(s, f"of {int(res['limit'] // 60)}:{int(res['limit'] % 60):02d}",
+                      self.f.small, MUTED, cx, y, "midtop")
+            y += self.f.small.get_height() + self.px(10)
+        else:
+            y += self.px(6)
+
+        stats = [("SCORE", f"{res['score']:,}"),
+                 ("DISTANCE", f"{res['dist_km']:.2f} km"),
+                 ("HAZARDS HIT", str(res["hazards"])),
+                 ("WIPEOUTS", f"{res['wipeouts']}/{SURVIVE_LIVES}"),
+                 ("CONDITION", f"{int(res['health'])}%")]
+        tw = min(w - self.px(120), self.px(700))
+        sw = tw // len(stats)
+        tile_h = self.f.tiny.get_height() + self.f.body.get_height() + self.px(12)
+        for i, (lab, val) in enumerate(stats):
+            r = pygame.Rect(cx - tw // 2 + i * sw, y, sw - self.px(5), tile_h)
+            self.panel(s, r, 150)
+            self.text(s, lab, self.f.tiny, MUTED, r.x + self.px(8), r.y + self.px(5))
+            self.text(s, val, self.f.body, SUN, r.x + self.px(8),
+                      r.y + self.px(5) + self.f.tiny.get_height())
+        y += tile_h + self.px(12)
+
+        pb = res["pb"]
+        self.text(s, "NEW PERSONAL BEST" if pb is None else f"PERSONAL BEST {pb:,}",
+                  self.f.tiny, MINT if pb is None else MUTED, cx, y, "midtop")
+        y += self.f.tiny.get_height() + self.px(6)
+
+        bw, bh = self.px(180), self.px(34)
+        by = max(y + self.px(14), min(int(h * 0.80), h - bh - self.px(30)))
+        self.button(s, pygame.Rect(cx - bw - self.px(6), by, bw, bh),
+                    "GO AGAIN", ("again", None))
+        self.button(s, pygame.Rect(cx + self.px(6), by, bw, bh),
                     "CHANGE MODE", ("screen", "title"))
         self.toasts(s, g, w)
 
@@ -1019,38 +1127,67 @@ class Ui:
                               r.x + self.px(9), dy)
                     dy += self.f.tiny.get_height()
         else:
-            self.text(s, LOCALES[g.rec_road]["name"], self.f.h2, CREAM, cx, y, "midtop")
+            # Survival only ever happens in one place, so the road buttons
+            # would be four ways of asking the same question.
+            survive = g.rec_mode == "survive"
+            road = SURVIVAL_LOCALE if survive else g.rec_road
+            self.text(s, LOCALES[road]["name"], self.f.h2, CREAM, cx, y, "midtop")
             y += self.f.h2.get_height() + self.px(8)
             bw = self.px(140)
             fh = self.f.tiny.get_height() + self.px(10)
-            for i, lid in enumerate(LOCALE_IDS):
-                self.button(s, pygame.Rect(cx - (bw * 2 + self.px(9)) + i * (bw + self.px(6)),
-                                           y, bw, fh),
-                            LOCALES[lid]["name"], ("recroad", lid),
-                            active=(lid == g.rec_road), font=self.f.tiny)
-            y += fh + self.px(6)
+            if not survive:
+                for i, lid in enumerate(LOCALE_IDS):
+                    self.button(s, pygame.Rect(
+                        cx - (bw * 2 + self.px(9)) + i * (bw + self.px(6)), y, bw, fh),
+                        LOCALES[lid]["name"], ("recroad", lid),
+                        active=(lid == g.rec_road), font=self.f.tiny)
+                y += fh + self.px(6)
+            mw = self.px(150)
+            span = mw * len(REC_MODES) + self.px(5) * (len(REC_MODES) - 1)
             for i, (mid, lab) in enumerate(REC_MODES):
-                self.button(s, pygame.Rect(cx - self.px(230) + i * self.px(155),
-                                           y, self.px(150), fh), lab,
+                self.button(s, pygame.Rect(cx - span // 2 + i * (mw + self.px(5)),
+                                           y, mw, fh), lab,
                             ("recmode", mid), active=(mid == g.rec_mode), font=self.f.tiny)
             y += fh + self.px(10)
 
             parts = g.rec_mode.split(":")
-            f = store.get_records(g.data, parts[0], g.rec_road,
+            f = store.get_records(g.data, parts[0], road,
                                   parts[1] if len(parts) > 1 else "hard")
-            bp = f.get("best_pos") or 0
-            self.text(s, f"Races {f.get('runs', 0)}   ·   Best finish "
-                         f"{bp if bp and bp < 99 else '—'}   ·   Best combo "
-                         f"{f.get('best_combo', 0)}",
-                      self.f.mono, MUTED, cx, y, "midtop")
+            if survive:
+                longest = f.get("longest", [])
+                got_out = sum(1 for e in longest if e.get("out"))
+                best = max((e["secs"] for e in longest), default=0)
+                self.text(s, f"Attempts {f.get('runs', 0)}   ·   Got out "
+                             f"{got_out}   ·   Longest "
+                             f"{int(best // 60)}:{int(best % 60):02d}",
+                          self.f.mono, MUTED, cx, y, "midtop")
+            else:
+                bp = f.get("best_pos") or 0
+                self.text(s, f"Races {f.get('runs', 0)}   ·   Best finish "
+                             f"{bp if bp and bp < 99 else '—'}   ·   Best combo "
+                             f"{f.get('best_combo', 0)}",
+                          self.f.mono, MUTED, cx, y, "midtop")
             y += self.f.mono.get_height() + self.px(14)
             table_top = y
 
-            for ci, (title, rows, fmt) in enumerate([
+            if survive:
+                tables = [
+                    ("LONGEST RUNS", f.get("longest", []),
+                     lambda e: (f"{int(e['secs'] // 60)}:{int(e['secs'] % 60):02d}",
+                                ("got out" if e.get("out") else "stopped")
+                                + f" · {e.get('hits', 0)} hit")),
+                    ("TOP SCORES", f.get("scores", []),
+                     lambda e: (f"{e['score']:,}",
+                                f"{e.get('kmh', 0)} km/h · {e.get('hits', 0)} hit")),
+                ]
+            else:
+                tables = [
                     ("TOP SCORES", f.get("scores", []),
                      lambda e: (f"{e['score']:,}", f"×{e['combo']} · P{e['pos']}")),
                     ("FASTEST KILOMETRE", f.get("splits", []),
-                     lambda e: (f"{e['fkm']:.2f}s", f"{e.get('kmh', 0)} km/h · P{e['pos']}"))]):
+                     lambda e: (f"{e['fkm']:.2f}s", f"{e.get('kmh', 0)} km/h · P{e['pos']}")),
+                ]
+            for ci, (title, rows, fmt) in enumerate(tables):
                 marg = self.px(80)
                 cw = (w - marg * 2 - self.px(16)) // 2
                 x = marg + ci * (cw + self.px(16))

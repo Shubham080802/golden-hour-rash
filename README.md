@@ -48,6 +48,7 @@ The whole product is one inversion: **keep the violence, delete the punishment.*
 | **Zen** | No rivals, no timer, no score. Just the road and a slow pad. |
 | **Daily** | The same seeded road for everyone, split Guided / Blind. |
 | **Story** | Five legs of one night's ride, ending at a sunrise. |
+| **Survive** | Five minutes out of the backstreets, with a health bar. |
 
 Daily takes its road from the date, so the board stays comparable. Everything
 that moves a racer draws from a stream seeded by the track, so the same seed
@@ -92,6 +93,57 @@ supersampling and bloom as the road does, which is where the glow comes from.
 Prose types itself out a character at a time; any key fills the rest in.
 Reduced motion (**C**) keeps the sky's slow blend and stills everything that
 moves for its own sake.
+
+## Survival — five minutes out of the backstreets
+
+A condemned quarter at night: sodium lamps, boarded blocks, chain-link, skips
+on the kerb. There is no race and no score to chase. Last five minutes and you
+are out; run out of condition three times and the road keeps you.
+
+**Condition, not lives alone.** A bar runs from 100 and every accident takes a
+bite out of it — a skip costs more than a cone, a car more than a kerb. Empty
+it and you go down, get picked up with a dent in the bar (62% the first time,
+45% the second) and carry on. The third time ends the run. You cannot be hit
+again in the second you are getting up, so nothing chains into an instant
+loss. Eight seconds without touching anything starts a slow trickle back,
+which is what makes riding well the thing that keeps you alive rather than
+pure attrition.
+
+**Seven hazards**, each with its own damage, speed penalty, sideways shove and
+hit width:
+
+| | Damage | What it does |
+|---|---|---|
+| Cone | 5 | Barely there. Clips your line |
+| Pothole | 9 | Kicks the bike up |
+| Rubble | 13 | Slows you and pushes you wide |
+| Oil | 4 | Almost no damage, and takes the bike away from you |
+| Barrier | 17 | Stops a third of your speed |
+| Burning barrel | 15 | Wide, bright, easy to fixate on |
+| Skip | 23 | Halves your speed. Do not hit a skip |
+
+**No pattern.** Gaps between hazards are drawn from an exponential
+distribution rather than a fixed spacing, and each one's lane is drawn
+independently, so there is no rhythm to learn and no safe line to memorise —
+only what you can read of the road ahead. Both draws come from the run's
+seeded stream, so a given seed is still repeatable. Spacing tightens from
+about 118 m at the gate to 38 m at the five-minute mark, and the heavy things
+get likelier as it goes: the way out gets worse the closer you get to it.
+
+Five of the pack come with you, the five who most want a fight. They are not
+racing you out here — they are given a short leash so they stay on your wheel
+and keep knocking you about. That detail was measured, not guessed: with the
+normal racing leash the harder difficulties made Survival *easier*, because a
+quick rider simply cleared off up the road and left you alone.
+
+Measured with a bot that dodges both traffic and hazards, over sixteen runs
+each: it gets out **4/16** on Steady, **3/16** on Racer and **0/16** on
+Ruthless, with median runs of 4:03, 3:51 and 1:52. Most attempts die between
+three and four minutes, which is the shape the mode is for.
+
+The record room keeps survival separately, ranked by how long you lasted
+rather than by score — a long run that scored badly still counts for
+something.
 
 ## Traffic
 
@@ -293,6 +345,7 @@ goldenhour/
   store.py              JSON persistence
   achievements.py       definitions and checking
   story.py              the five legs, their goals and progress
+  hazards.py            what is lying in the road in Survival
   cinema.py             the animated story beats
   game.py               state, physics, world render pass
 tools/smoke.py          headless self-test — renders every screen and races

@@ -135,6 +135,49 @@ print("story progress:", st.get("done"))
 assert len(st.get("done", [])) == len(story.CHAPTERS), "a leg failed to record"
 assert all(ch["id"] in st.get("best", {}) for ch in story.CHAPTERS), "a best went missing"
 
+# --- survival: the mode, the hazards, and both ways it can end ---
+from goldenhour.hazards import KINDS as HAZARD_KINDS
+for diff in ("steady", "ruthless"):
+    g.difficulty = diff
+    g.start_survival()
+    assert g.locale == "backstreets" and g.time_limit == 300.0
+    seen = set()
+    n = 0
+    while g.phase == "playing" and n < 60*60*7:
+        pp = g.pos + g.PLAYER_Z
+        seg = g.track.find(pp)
+        want = -seg.curve * 0.09
+        threat = 0.0
+        for c in g.cars:
+            d = g.track.rel_z(c.z - pp)
+            if 0 < d < 9000 and abs(c.offset - g.player_x) < 0.55:
+                threat += (1 if c.offset <= g.player_x else -1) * (1 - d/9000)
+        for hz in g.hazards.items:
+            seen.add(hz.hz)
+            if hz.hit: continue
+            d = g.track.rel_z(hz.z - pp)
+            if 0 < d < 11000 and abs(hz.offset - g.player_x) < 0.6:
+                threat += (1 if hz.offset <= g.player_x else -1) * 1.6 * (1 - d/11000)
+        if threat:
+            want = max(-0.85, min(0.85, g.player_x + (1 if threat > 0 else -1) * 0.55))
+        g.steer = max(-1, min(1, (want - g.player_x) * 2.6))
+        g.braking = abs(seg.curve) > 4.4 and g.speed > 12000*0.62
+        if n % 300 == 0: ui.begin(); ui.hud(screen, g, WIN_W, WIN_H)
+        g.update(1/60); n += 1
+    res = g.results
+    draw("results")
+    print(f"  survive {diff:8s} {'OUT' if res['out'] else 'STOPPED'} at "
+          f"{int(res['secs']//60)}:{int(res['secs']%60):02d}"
+          f"  wipeouts {res['wipeouts']}  hazards hit {res['hazards']}"
+          f"  kinds seen {len(seen)}/{len(HAZARD_KINDS)}  score {res['score']:,}")
+    assert res["secs"] > 20, "survival ended immediately"
+    assert len(seen) >= 5, f"only {len(seen)} hazard kinds ever appeared"
+    assert g.lives >= 0 and res["wipeouts"] <= 3
+g.rec_mode = "survive"; draw("records"); g.rec_mode = "run"
+print("  record room, survival tab OK")
+sv = store.load()["records"].get("survive:backstreets", {})
+assert sv.get("longest"), "survival runs did not record"
+
 # --- persistence ---
 d2 = store.load()
 print("records saved:", sorted(d2["records"].keys()))

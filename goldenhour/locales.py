@@ -128,6 +128,45 @@ LOCALES = {
                   "drums": "shuffle", "bass": "square", "leadw": "square",
                   "pad": "saw", "drive": 0.68},
     },
+    "backstreets": {
+        "name": "Backstreets",
+        "blurb": "Condemned blocks, sodium light, nowhere to stop",
+        "track": "Last One Out (Sodium Mix)",
+        "light": {"road": hexc("#2E2E33"), "grass": hexc("#26242A"), "rumble": hexc("#7A6A4E"),
+                  "lane": hexc("#C9B071"), "trackw": hexc("#28282D"), "edge": hexc("#6E6A62"),
+                  "rail": hexc("#4A4750")},
+        "dark": {"road": hexc("#292A2F"), "grass": hexc("#211F26"), "rumble": hexc("#8A7757"),
+                 "lane": None, "trackw": hexc("#232328"), "edge": hexc("#6E6A62"),
+                 "rail": hexc("#413E48")},
+        # No sunset here. The glow on the skyline is streetlight on low cloud.
+        "sky_stops": [(0.0, hexc("#05060C")), (0.30, hexc("#0B0D18")), (0.55, hexc("#161428")),
+                      (0.76, hexc("#33233A")), (0.90, hexc("#6B3E33")), (1.0, hexc("#9A5A2E"))],
+        # A moon behind city haze, not a sun: this road is the only one in
+        # the game where the light is all artificial.
+        "horizon": hexc("#9A5A2E"), "sun": hexc("#A7ADC0"), "accent": hexc("#E0A23C"),
+        "cloud_hi": hexc("#8A5A3C"), "cloud_lo": hexc("#1A1524"),
+        "ridge_far": hexc("#221C30"), "ridge_near": hexc("#120E1C"),
+        "hill": hexc("#0E0B16"), "hill2": hexc("#1A1524"),
+        "lanes": True, "rails": True, "bpm": 140, "prop_density": 0.62,
+        "props": [{"kind": "block", "scale": 3.4, "far": True},
+                  {"kind": "block", "scale": 2.6, "far": True},
+                  {"kind": "lamp", "scale": 0.62},
+                  {"kind": "fence", "scale": 0.9},
+                  {"kind": "skip", "scale": 0.7},
+                  {"kind": "lamp", "scale": 0.52}],
+        "weather": {"colour": hexc("#C8B48C"), "count": 90, "streak": 2.0, "size": 0.9, "alpha": 60},
+        "terrain": {"hill_amp": 0.45, "curve_amp": 1.25, "climb": 0,
+                    "straight_bias": 0.26, "tight": 0.30, "ai_skill": 0.10},
+        # F minor, hardest kit in the game, and quick with it.
+        "music": {"roots": [87.31, 77.78, 103.83, 87.31],
+                  "scale": [349.23, 415.30, 466.16, 523.25, 622.25],
+                  "lead": [0, 1, 0, 2, 3, 2, 1, 0, 4, 3, 2, 1, 0, 2, 1, 0],
+                  "drums": "drive", "bass": "saw", "leadw": "square",
+                  "pad": "saw", "drive": 1.00},
+    },
 }
 
 LOCALE_IDS = ["coast", "dunes", "ridge", "canyon"]
+# The backstreets are not a road you pick from the title screen; they are
+# where Survival puts you.
+SURVIVAL_LOCALE = "backstreets"

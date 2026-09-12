@@ -10,9 +10,12 @@ from .config import (ACCEL, BRAKE, CAM_DEPTH, CAM_H, CAMERAS, CENTRIFUGAL, DECEL
                      DEFAULT_CAMERA, DEFAULT_DIFFICULTY, camera_by_id,
                      DIFFICULTIES, DRAW_DIST, difficulty_edge,
                      FOG_STEPS, MAX_SPEED, OFF_DECEL, OFF_LIMIT, PLAYER_Z, PTS,
-                     KM, SEG_LEN, SONG_LEN, U_PER_M, clamp, lerp, mix)
-from .locales import LOCALE_IDS, LOCALES
+                     KM, SEG_LEN, SONG_LEN, SURVIVE_HEALTH, SURVIVE_LEN,
+                     SURVIVE_LIVES, SURVIVE_REGEN, SURVIVE_REGEN_AFTER,
+                     U_PER_M, clamp, lerp, mix)
+from .locales import LOCALE_IDS, LOCALES, SURVIVAL_LOCALE
 from .cinema import Cinema
+from .hazards import HazardField, damage_for
 from .modifiers import NONE as MOD_NONE, offer as offer_mods
 from .racers import (Car, RIDER_SPECS, Rider, fastest_km, push_trace,
                      time_at_distance)
@@ -68,6 +71,17 @@ class Game:
         self.story_res = None
         self.time_limit = SONG_LEN
 
+        # survival
+        self.hazards = HazardField(self.sim_rnd)
+        self.health = SURVIVE_HEALTH
+        self.lives = SURVIVE_LIVES
+        self.wipeouts = 0
+        self.clean_for = 0.0
+        self.hazard_hits = 0
+        self.survived = 0.0
+        self.getting_up = 0.0
+        self.warn = None
+
         self.picked_locale = data["settings"].get("locale", "coast")
         if self.picked_locale not in LOCALES:
             self.picked_locale = "coast"
@@ -88,7 +102,16 @@ class Game:
         # cars put two in view and the highway read as abandoned. 90 puts six
         # or seven ahead of you, peaking around a dozen.
         n_cars = 34 if zen else int(90 * self.mod.get("traffic", 1.0))
+        if self.mode == "survive":
+            # Still a busy street, but this mode is about what is lying in the
+            # road; at 90 the cars were a third of all damage taken and the
+            # hazards were a rounding error.
+            n_cars = 62
         specs = RIDER_SPECS
+        if self.mode == "survive":
+            # The five who want a fight. They are not racing you out here,
+            # they are in your way, which is worse.
+            specs = sorted(RIDER_SPECS, key=lambda sp: -sp["aggro"])[:5]
         if self.mode == "story":
             # A chapter says how busy its road is and how many rivals came
             # along; an empty road is a legitimate thing for a leg to be.
@@ -111,6 +134,20 @@ class Game:
                 if self.mod.get("rival_pace"):
                     r.nerve = min(1.0, r.nerve * self.mod["rival_pace"])
                 self.riders.append(r)
+        if self.mode == "survive":
+            # These five are not racing you, they are in your way. The racing
+            # leash lets a quick rider clear off up the road, which on the
+            # harder settings made the mode EASIER — they simply left you
+            # alone. Out here they hang around your wheel instead, and the
+            # difficulty comes from how much they want a piece of you.
+            edge = difficulty_edge(self.race_difficulty)
+            for r in self.riders:
+                r.leash = 9000.0
+                r.aggro = clamp(r.aggro * (0.9 + (edge - 1.0) * 2.2), 0.2, 1.0)
+                r.start_lead = min(r.dist, 5200.0)
+                r.dist = r.start_lead
+                r.z = (self.pos + PLAYER_Z + r.start_lead) % self.track.length
+
         self.actors = self.cars + self.riders
         for r in self.riders:
             r.ahead = r.dist > self.dist
@@ -164,6 +201,17 @@ class Game:
         self.off_for = 0.0
         self.clipped_count = 0
         self.passed_by = 0
+        self.health = SURVIVE_HEALTH
+        self.lives = SURVIVE_LIVES
+        self.wipeouts = 0
+        self.clean_for = 0.0
+        self.hazard_hits = 0
+        self.survived = 0.0
+        self.getting_up = 0.0
+        self.warn = None
+        self.hazards = HazardField(self.sim_rnd)
+        if self.mode == "survive":
+            self.hazards.reset(self.pos + PLAYER_Z)
         self.make_actors()
 
     def start_attract(self):
@@ -245,6 +293,122 @@ class Game:
         self.screen = "race"
         self.audio.start_music(LOCALES[self.locale], mode == "zen")
         self.pop("RIDE" if mode == "zen" else "GO", (255, 241, 222))
+
+    # -------------------------------------------------------- survival mode
+    def start_survival(self):
+        """Five minutes out of the backstreets."""
+        self.mod = MOD_NONE
+        self.mode = "survive"
+        self.diff = "hard"
+        self.guide = False
+        self.story_ch = None
+        self.locale = SURVIVAL_LOCALE
+        self.seed = self.rnd.randrange(10 ** 9)
+        self.track = build_track(self.seed, LOCALES[self.locale])
+        self.sim_rnd = random.Random(self.seed)
+        self.time_limit = SURVIVE_LEN
+        self.pos = 0.0
+        self.dist = 0.0
+        self.reset_ride()
+        self.phase = "playing"
+        self.screen = "race"
+        self.audio.start_music(LOCALES[self.locale], False)
+        self.pop("RIDE", (255, 241, 222))
+
+    @property
+    def pressure(self):
+        """0 at the gate, 1 at the five-minute mark. Everything that gets
+        worse as you go reads this."""
+        return clamp(self.t / max(1.0, self.time_limit), 0.0, 1.0)
+
+    def hazard_density(self):
+        """Difficulty turns the tap. Steady is survivable; Ruthless is not
+        meant to be, often."""
+        return {"steady": 0.95, "racer": 1.35, "ruthless": 1.85}.get(
+            self.race_difficulty, 1.35)
+
+    def damage(self, amount, label, col=(255, 63, 107)):
+        """Take health off, and wipe out if it runs out."""
+        if self.mode != "survive" or self.phase != "playing" or self.getting_up > 0:
+            return
+        self.health -= amount
+        self.clean_for = 0.0
+        if label:
+            self.pop(f"{label}  -{int(round(amount))}", col)
+        if self.health <= 0:
+            self.wipe_out()
+
+    def wipe_out(self):
+        """Down. Get up with a dent in the bar, unless that was the last one."""
+        self.health = 0.0
+        self.wipeouts += 1
+        self.lives -= 1
+        self.combo = 0
+        self.shake = 1.4
+        self.flash, self.flash_col = 1.0, (255, 63, 107)
+        self.audio.sfx_clip()
+        self.burst((255, 63, 107), 40)
+        if self.lives <= 0:
+            self.pop("DOWN AND OUT", (255, 63, 107))
+            self.finish()
+            return
+        # picked the bike up: less in the tank each time, and slow to restart
+        self.health = SURVIVE_HEALTH * (0.62 if self.wipeouts == 1 else 0.45)
+        self.getting_up = 1.9
+        self.speed *= 0.30
+        self.pop(f"WIPEOUT  ·  {self.lives} LEFT", (255, 63, 107))
+
+    def hit_hazard(self, h):
+        """Ran into something in the road."""
+        spec = h.spec
+        h.hit = True
+        self.hazard_hits += 1
+        self.break_clean()
+        edge = difficulty_edge(self.race_difficulty)
+        self.damage(damage_for(h.hz, self.pressure, edge), spec["label"])
+        self.speed *= spec["keep"]
+        side = 1 if h.offset <= self.player_x else -1
+        self.shove = side * spec["shove"] * 1.35
+        self.dazed = 0.30 + spec["shove"] * 0.25
+        self.shake = max(self.shake, 0.5 + spec["shove"] * 0.4)
+        self.hit_stop = 0.05
+        self.flash, self.flash_col = 0.8, (255, 122, 60)
+        self.audio.sfx_bump() if spec["dmg"] < 13 else self.audio.sfx_clip()
+        self.burst((255, 122, 60), 10 + spec["dmg"])
+        if h.hz == "pothole":
+            self.air, self.air_t = 0.0001, 0.30
+
+    def update_survival(self, dt):
+        """Hazards, health, and the clock you are racing."""
+        player_pos = self.pos + PLAYER_Z
+        self.hazards.update(player_pos, self.track, self.pressure,
+                            self.hazard_density(), dt)
+        if self.getting_up > 0:
+            self.getting_up -= dt
+
+        for h in self.hazards.items:
+            if h.hit:
+                continue
+            d = self.track.rel_z(h.z - player_pos)
+            if abs(d) < 340 and abs(h.offset - self.player_x) < h.spec["hw"] + 0.10:
+                self.hit_hazard(h)
+
+        # A stretch without touching anything buys a little back. Without
+        # this the run is attrition with one outcome; with it, riding well
+        # is the thing that keeps you alive.
+        if self.phase == "playing":
+            self.clean_for += dt
+            if self.clean_for > SURVIVE_REGEN_AFTER and self.health > 0:
+                self.health = min(SURVIVE_HEALTH, self.health + SURVIVE_REGEN * dt)
+            if abs(self.player_x) > 0.97:
+                # Scraping the kerb should cost, but it is not what this mode
+                # is about: at 9 a second it was over half of all damage taken
+                # and the twistier the street the less the hazards mattered.
+                self.damage(1.8 * dt, None)
+            self.survived = self.t
+
+        nxt = self.hazards.near(player_pos, self.track)
+        self.warn = nxt[0][1] if nxt else None
 
     # ----------------------------------------------------------- story mode
     def open_journey(self):
@@ -367,6 +531,8 @@ class Game:
 
     def collide(self, severity):
         self.break_clean()
+        if self.mode == "survive":
+            self.damage(severity * 14.0, "TRAFFIC")
         severity *= self.mod.get("collide", 1.0)
         self.speed *= (1 - severity * 0.42)
         self.dazed = 0.42
@@ -381,6 +547,8 @@ class Game:
 
     def clipped(self, side, who=None):
         self.break_clean()
+        if self.mode == "survive":
+            self.damage(7.0, "KNOCKED DOWN" if who is None else who.upper())
         self.clipped_count += 1
         self.speed *= 0.94
         self.shove = (side or 1) * 1.15
@@ -614,6 +782,9 @@ class Game:
                 for r in self.riders:
                     push_trace(r.trace, self.t, r.dist)
 
+        if self.mode == "survive" and self.phase == "playing":
+            self.update_survival(dt)
+
         if playing:
             self.t += dt
             if not zen and self.t >= self.time_limit:
@@ -666,11 +837,46 @@ class Game:
             r["purple"] = (best_km is r)
         return rows
 
+    def build_survival_results(self):
+        """Either you got out or the road kept you."""
+        out = self.t >= self.time_limit - 0.05 and self.lives > 0
+        # Score is time survived first and everything else second: this mode
+        # is not about the board, it is about the last thirty seconds.
+        self.score += self.survived * 120 + self.dist / U_PER_M * 1.5
+        if out:
+            self.score += 12000
+        res = {"zen": False, "survive": True, "out": out,
+               "secs": self.survived, "limit": self.time_limit,
+               "health": max(0.0, self.health), "wipeouts": self.wipeouts,
+               "hazards": self.hazard_hits, "contacts": self.contacts,
+               "dist_km": self.dist / KM, "score": int(self.score),
+               "perfect": False, "tidy": False, "allow": 0,
+               "rows": [], "pos": 0, "of": 0,
+               "pb": store.personal_best(self.data, "survive", self.locale,
+                                         "hard", int(self.score))}
+        store.record_run(self.data, "survive", self.locale, "hard", {
+            "ts": store.now_ts(), "score": int(self.score), "combo": self.best_combo,
+            "hits": self.hazard_hits, "pos": 1 if out else 2, "fkm": None,
+            "kmh": round(self.top_speed / U_PER_M * 3.6),
+            "secs": round(self.survived, 1), "out": out})
+        run = {"pos": 1 if out else 9, "of": 1, "clean": False,
+               "contacts": self.contacts, "hits": self.hits,
+               "knockdowns": self.knockdowns, "near": self.near, "airs": self.airs,
+               "combo": self.best_combo, "clipped": self.clipped_count,
+               "passed_by": self.passed_by, "overtakes": self.overtakes,
+               "mode": "survive", "diff": "hard", "locale": self.locale,
+               "mod": "none", "score": int(self.score), "fkm": None}
+        for ident, name, desc in achievements.check(self.data, run):
+            self.toasts.append({"name": name, "desc": desc, "life": 5.0})
+        return res
+
     def clean_allowance(self):
         """How many knocks a run may take and still count as clean."""
         return max(2, round(self.dist / KM * 0.8))
 
     def build_results(self):
+        if self.mode == "survive":
+            return self.build_survival_results()
         if self.mode == "story":
             return self.build_story_results()
         zen = self.mode == "zen"
@@ -807,7 +1013,10 @@ class Game:
 
         # actors bucketed by segment, drawn far to near
         bucket = {}
-        for a in self.actors:
+        actors = self.actors
+        if self.mode == "survive":
+            actors = actors + self.hazards.items
+        for a in actors:
             si = int(a.z // SEG_LEN) % n_segs
             bucket.setdefault(si, []).append(a)
 
@@ -832,7 +1041,10 @@ class Game:
                 sw = lerp(seg.p1["w"], seg.p2["w"], pct)
                 if sw < 1:
                     continue
-                if a.kind == "car":
+                if a.kind == "hazard":
+                    r.draw_hazard(surf, a.hz, sx, sy, sw * a.spec["size"], a.spin,
+                                  loc["horizon"], fog_t)
+                elif a.kind == "car":
                     col = mix(a.col, loc["horizon"], fog_t)
                     r.draw_car(surf, sx, sy, sw * a.w, col, a.oncoming)
                 else:

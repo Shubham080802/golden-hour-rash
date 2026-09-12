@@ -69,12 +69,19 @@ def record_run(data, mode, locale, diff, entry):
     the split table to whatever those ten runs happened to do."""
     key = format_key(mode, locale, diff)
     f = data["records"].setdefault(
-        key, {"scores": [], "splits": [], "runs": 0, "best_pos": 99, "best_combo": 0})
+        key, {"scores": [], "splits": [], "longest": [], "runs": 0, "best_pos": 99,
+              "best_combo": 0})
     f["runs"] = f.get("runs", 0) + 1
     f["scores"] = sorted(f["scores"] + [entry], key=lambda e: -e["score"])[:10]
     if entry.get("fkm") is not None:
         f["splits"] = sorted([e for e in f["splits"] + [entry] if e.get("fkm") is not None],
                              key=lambda e: e["fkm"])[:10]
+    if entry.get("secs") is not None:
+        # Survival is ranked by how long you lasted, which a top-ten by score
+        # does not preserve: a long run that scored badly still matters.
+        f["longest"] = sorted([e for e in f.get("longest", []) + [entry]
+                               if e.get("secs") is not None],
+                              key=lambda e: -e["secs"])[:10]
     f["best_pos"] = min(f.get("best_pos", 99), entry["pos"])
     f["best_combo"] = max(f.get("best_combo", 0), entry["combo"])
     save(data)
@@ -84,7 +91,8 @@ def record_run(data, mode, locale, diff, entry):
 def get_records(data, mode, locale, diff):
     return data["records"].get(
         format_key(mode, locale, diff),
-        {"scores": [], "splits": [], "runs": 0, "best_pos": 0, "best_combo": 0})
+        {"scores": [], "splits": [], "longest": [], "runs": 0, "best_pos": 0,
+         "best_combo": 0})
 
 
 def personal_best(data, mode, locale, diff, score):

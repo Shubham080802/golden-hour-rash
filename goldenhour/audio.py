@@ -67,15 +67,36 @@ class Audio:
 
     # ---- sample construction ------------------------------------------
     def _sound(self, key, build):
+        """Build and cache one sample.
+
+        Returns None if the mixer has gone away underneath us — a device can
+        disappear mid-session (headphones unplugged, output switched), and
+        the game carrying on in silence beats it dying in a crash handler.
+        """
         snd = self._cache.get(key)
         if snd is None:
-            mono = build().astype(np.float32)
-            peak = float(np.max(np.abs(mono))) or 1.0
-            mono = (mono / peak * 0.85 * 32767).astype(np.int16)
-            stereo = np.repeat(mono[:, None], 2, axis=1)
-            snd = pygame.sndarray.make_sound(np.ascontiguousarray(stereo))
+            try:
+                mono = build().astype(np.float32)
+                peak = float(np.max(np.abs(mono))) or 1.0
+                mono = (mono / peak * 0.85 * 32767).astype(np.int16)
+                stereo = np.repeat(mono[:, None], 2, axis=1)
+                snd = pygame.sndarray.make_sound(np.ascontiguousarray(stereo))
+            except (pygame.error, ValueError):
+                self.ok = False
+                return None
             self._cache[key] = snd
         return snd
+
+    def _play(self, snd, vol):
+        if snd is None:
+            return
+        try:
+            ch = pygame.mixer.find_channel(True)
+            if ch:
+                ch.set_volume(min(1.0, vol))
+                ch.play(snd)
+        except pygame.error:
+            self.ok = False
 
     def tone(self, kind, freq, dur, gain, f_end=None, music=True):
         if not self.ok or gain <= 0:
@@ -88,10 +109,7 @@ class Audio:
         n = max(64, int(dur * RATE))
         key = ("t", kind, round(freq, 2), round(dur, 3), round(f_end or 0, 2))
         snd = self._sound(key, lambda: _wave(kind, freq, n, f_end) * _env(n))
-        ch = pygame.mixer.find_channel(True)
-        if ch:
-            ch.set_volume(min(1.0, vol))
-            ch.play(snd)
+        self._play(snd, vol)
 
     def noise(self, dur, gain, tilt=1.0, music=True):
         """`tilt` above 1 brightens (hats), below 1 dulls (snare, thuds)."""
@@ -116,10 +134,7 @@ class Audio:
             return x * _env(n, 9.0)
 
         snd = self._sound(key, build)
-        ch = pygame.mixer.find_channel(True)
-        if ch:
-            ch.set_volume(min(1.0, vol))
-            ch.play(snd)
+        self._play(snd, vol)
 
     # ---- music ---------------------------------------------------------
     def start_music(self, locale, zen):
