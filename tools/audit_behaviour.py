@@ -129,6 +129,33 @@ g = new_game(); g.start_mode("zen")
 ok("Zen has no hazards and no health bar",
    not getattr(g.hazards, "items", []) and g.mode == "zen")
 
+print("== survival is not a race ==")
+from goldenhour.racers import Rider
+g = new_game(); g.rnd = random.Random(11); g.start_survival()
+ok("Survival riders are hostile", all(r.hostile for r in g.riders))
+ok("They wear no race colours", all(max(r.bike) < 120 for r in g.riders))
+peer = {"n": 0}
+_take = Rider.take_hit
+def _spy(self, from_side, hard=True):
+    peer["n"] += 1
+    return _take(self, from_side, hard)
+Rider.take_hit = _spy
+drive(g, frames=60*60*6, swing=False)
+Rider.take_hit = _take
+ok("They never fight each other", peer["n"] == 0, f"{peer['n']} rider-on-rider hits")
+ok("No positions are tracked out there",
+   g.overtakes == 0 and g.passed_by == 0 and g.results["of"] == 0)
+
+g = new_game(); g.difficulty = "racer"; g.rnd = random.Random(5)
+g.set_locale("coast"); g.start_mode("run")
+ok("A race still fields racers, not enemies", not any(r.hostile for r in g.riders))
+peer["n"] = 0
+Rider.take_hit = _spy
+drive(g, frames=60*60*5)
+Rider.take_hit = _take
+ok("And the pack still elbows itself", peer["n"] > 0, f"{peer['n']} rider-on-rider hits")
+ok("And a race still classifies ten", g.results["of"] == 10)
+
 print("== memory and growth ==")
 g = new_game(); g.rnd = random.Random(3); g.start_survival()
 drive(g, frames=60*60*5)

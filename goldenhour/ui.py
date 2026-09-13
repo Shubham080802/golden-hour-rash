@@ -229,9 +229,16 @@ class Ui:
         if not zen:
             if g.riders:                      # nothing behind you to watch for
                 self._mirror(s, g, w, h)
-                self._standings(s, g, w, h)
+                # No standings in Survival: there is no race on out there, so
+                # a running order and a gap in metres would be answering a
+                # question nobody is asking.
+                if g.mode != "survive":
+                    self._standings(s, g, w, h)
             self._combo(s, g, w, h)
-            self._clean_pip(s, g, h)
+            # The clean-run pip tracks a bonus Survival does not award, so
+            # out there it is a promise the mode never keeps.
+            if g.mode != "survive":
+                self._clean_pip(s, g, h)
             if g.guide:
                 self._guide_map(s, g, w, h)
                 self._callout(s, g, w, h)

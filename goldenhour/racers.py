@@ -167,6 +167,10 @@ class Rider:
         self.ahead = True
         self.pass_cd = 0.0
         self.target = None
+        # Survival turns this on. A hostile rider is not racing you — there
+        # is no position to take off you and no interest in the rider beside
+        # them. They want you off the road.
+        self.hostile = False
         self.trace = []
         self.top_speed = 0.0
 
@@ -299,7 +303,9 @@ class Rider:
         self.dist += self.speed * dt
 
         # --- overtakes, hysteresis and a cooldown ------------------------
-        if racing:
+        # Hostile riders are not in a race, so being in front of one means
+        # nothing and there is no place to lose to them.
+        if racing and not self.hostile:
             if self.pass_cd > 0:
                 self.pass_cd -= dt
             lead = self.dist - game.dist
@@ -332,7 +338,10 @@ class Rider:
         # --- fights: with you, and with each other ------------------------
         # Rivals used to only ever swing at the player, which made the pack
         # feel like a wall rather than a race. They now pick whoever is in
-        # reach, and the field spends the whole run elbowing itself.
+        # reach, and the field spends the whole run elbowing itself —
+        # except in Survival, where they are not a field. They are a pack
+        # of hooligans running you out of the area, they have no quarrel
+        # with each other, and every swing is aimed at you.
         if racing:
             def in_reach(other_offset, gap):
                 return abs(gap) < 620 and abs(self.offset - other_offset) < 0.42
@@ -341,7 +350,12 @@ class Rider:
                 self.tell += dt * 2.4
                 if self.tell >= 1:
                     self.tell = 0
-                    self.cd = 3.2 + game.sim_rnd.random() * 3
+                    # A hostile rider never wastes a swing on a peer, so every
+                    # one of them lands on you. They wind up slower to keep the
+                    # rate of hits taken where it was when the pack had each
+                    # other to worry about.
+                    self.cd = ((4.5 + game.sim_rnd.random() * 3.4) if self.hostile
+                               else (3.2 + game.sim_rnd.random() * 3))
                     victim = self.target
                     if victim is None:
                         if in_reach(game.player_x, d) and game.dazed <= 0:
@@ -366,6 +380,8 @@ class Rider:
                     if in_reach(game.player_x, d):
                         pick, pick_off = None, game.player_x
                         found = True
+                    elif self.hostile:
+                        found = False          # only ever you
                     else:
                         found = False
                         best_gap = 1e9

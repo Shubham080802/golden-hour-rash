@@ -59,7 +59,7 @@ The whole product is one inversion: **keep the violence, delete the punishment.*
 | **Zen** | No rivals, no timer, no score. Just the road and a slow pad. |
 | **Daily** | The same seeded road for everyone, split Guided / Blind. |
 | **Story** | Five legs of one night's ride, ending at a sunrise. |
-| **Survive** | Five minutes out of the backstreets, with a health bar. |
+| **Survive** | Five minutes out of the backstreets. Not a race. |
 
 Daily takes its road from the date, so the board stays comparable. Everything
 that moves a racer draws from a stream seeded by the track, so the same seed
@@ -141,16 +141,30 @@ seeded stream, so a given seed is still repeatable. Spacing tightens from
 about 118 m at the gate to 38 m at the five-minute mark, and the heavy things
 get likelier as it goes: the way out gets worse the closer you get to it.
 
-Five of the pack come with you, the five who most want a fight. They are not
-racing you out here — they are given a short leash so they stay on your wheel
-and keep knocking you about. That detail was measured, not guessed: with the
-normal racing leash the harder difficulties made Survival *easier*, because a
-quick rider simply cleared off up the road and left you alone.
+**The riders out here are not the pack.** They are hooligans running you out
+of the area, and the mode says so everywhere it can: they wear no race
+colours, they have no names you are shown, and they have no quarrel with each
+other — every swing is aimed at you. Nothing tracks a position, because there
+is no race on: no standings panel, no overtakes, no places lost, and no
+classification at the end. The clean-run pip is gone too, since Survival never
+awards that bonus.
+
+They are on a short leash so they stay on your wheel rather than riding off.
+That detail was measured, not guessed: with the normal racing leash the harder
+difficulties made Survival *easier*, because a quick rider simply cleared off
+up the road and left you alone. And because a hostile rider never wastes a
+swing on a peer, they wind up slower than the racing pack does — otherwise
+removing the infighting quietly made the mode harder than it was tuned to be.
 
 Measured with a bot that dodges both traffic and hazards, over sixteen runs
-each: it gets out **4/16** on Steady, **3/16** on Racer and **0/16** on
-Ruthless, with median runs of 4:03, 3:51 and 1:52. Most attempts die between
-three and four minutes, which is the shape the mode is for.
+each: median runs of **3:48** on Steady, **3:44** on Racer and **2:09** on
+Ruthless. Most attempts die between three and four minutes, which is the shape
+the mode is for. Read the medians rather than the escape count — at sixteen
+runs the number that get out swings by two or three on noise alone.
+
+By damage taken, about half of a run is the hazards, with the kerb, the
+traffic and the riders splitting the rest. That is deliberate: the road is
+what the mode is about.
 
 The record room keeps survival separately, ranked by how long you lasted
 rather than by score — a long run that scored badly still counts for

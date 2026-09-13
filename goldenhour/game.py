@@ -24,6 +24,12 @@ from .track import Rng, build_track, hash_str
 from .weather import Weather
 
 
+# Survival's riders wear none of the pack's racing colours: dark leathers,
+# dark machines, nothing you would recognise from a start line.
+HOSTILE_BIKES = [(58, 54, 66), (44, 48, 58), (66, 50, 52), (40, 44, 50), (54, 46, 62)]
+HOSTILE_SUIT = (26, 24, 32)
+
+
 def today_key():
     return datetime.date.today().isoformat()
 
@@ -135,13 +141,16 @@ class Game:
                     r.nerve = min(1.0, r.nerve * self.mod["rival_pace"])
                 self.riders.append(r)
         if self.mode == "survive":
-            # These five are not racing you, they are in your way. The racing
-            # leash lets a quick rider clear off up the road, which on the
-            # harder settings made the mode EASIER — they simply left you
-            # alone. Out here they hang around your wheel instead, and the
-            # difficulty comes from how much they want a piece of you.
+            # These five are not racing you. The racing leash lets a quick
+            # rider clear off up the road, which on the harder settings made
+            # the mode EASIER — they simply left you alone. Out here they
+            # hang around your wheel instead, they never pick on each other,
+            # and the difficulty is how much they want a piece of you.
             edge = difficulty_edge(self.race_difficulty)
-            for r in self.riders:
+            for i, r in enumerate(self.riders):
+                r.hostile = True
+                r.bike = HOSTILE_BIKES[i % len(HOSTILE_BIKES)]
+                r.suit = HOSTILE_SUIT
                 r.leash = 9000.0
                 r.aggro = clamp(r.aggro * (0.9 + (edge - 1.0) * 2.2), 0.2, 1.0)
                 r.start_lead = min(r.dist, 5200.0)
@@ -548,7 +557,9 @@ class Game:
     def clipped(self, side, who=None):
         self.break_clean()
         if self.mode == "survive":
-            self.damage(7.0, "KNOCKED DOWN" if who is None else who.upper())
+            # No names out here. They are not riders you know.
+            who = None
+            self.damage(7.0, "JUMPED")
         self.clipped_count += 1
         self.speed *= 0.94
         self.shove = (side or 1) * 1.15
