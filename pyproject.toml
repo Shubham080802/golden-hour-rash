@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "golden-hour-rash"
-version = "1.0.0"
+version = "1.0.1"
 description = "A motorcycle combat racer: five roads, five modes, and a sunrise at the end of one of them."
 readme = "README.md"
 license = "MIT"
